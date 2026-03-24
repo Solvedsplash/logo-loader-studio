@@ -8,149 +8,257 @@ function buildHtml(animation, svgText) {
   const isPathDraw = animation.family === 'path-draw';
   const isParticleBurst = animation.family === 'particle-burst';
   const dataUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgText)}`;
-
-  const cssVars = Object.entries(animation.vars)
-    .map(([k, v]) => `${k}:${v}`)
-    .join(';');
+  const vars = animation.vars;
 
   return `<!DOCTYPE html>
 <html>
-<head>
-<meta charset="utf-8"/>
+<head><meta charset="utf-8"/>
 <style>
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+*{box-sizing:border-box;margin:0;padding:0}
 html,body{width:420px;height:420px;overflow:hidden;background:transparent}
-.stage{width:420px;height:420px;display:grid;place-items:center;background:transparent}
-.logo-stage{position:relative;width:128px;height:128px;display:flex;align-items:center;justify-content:center}
-.logo{
-  ${cssVars};
-  --duration:${animation.duration}ms;
-  width:110px;height:110px;object-fit:contain;
-  animation-duration:${animation.duration}ms;
-  animation-timing-function:${animation.easing};
-  animation-iteration-count:infinite;
-  transform-origin:center;
-  position:absolute;inset:0;z-index:2;
-}
-.motion-notion-fade{animation-name:kf-fade}
-.motion-linear-breathe{animation-name:kf-breathe}
-.motion-vercel-float{animation-name:kf-float}
-.motion-stripe-slide{animation-name:kf-slide}
-.motion-github-zoom{animation-name:kf-zoom}
-.motion-framer-blur{animation-name:kf-blur}
-.motion-figma-tilt{animation-name:kf-tilt}
-.motion-slack-spin{animation-name:kf-rotate}
-.motion-airtable-drift{animation-name:kf-drift}
-.motion-intercom-pop{animation-name:kf-pop}
-.motion-dropbox-reveal{animation-name:kf-reveal}
-.motion-asana-sweep{animation-name:kf-sweep}
-.motion-shopify-soft-bounce{animation-name:kf-soft-bounce}
-.motion-monday-blink{animation-name:kf-blink}
-.motion-loom-settle{animation-name:kf-settle}
-.motion-canva-glide{animation-name:kf-glide}
-.motion-path-draw{animation-name:kf-logo-reveal}
-.motion-particle-burst{animation-name:kf-subtle-fade}
-.motion-scale-pulse{animation-name:kf-scale-pulse}
-.motion-fade-in-out{animation-name:kf-fade}
-.is-path-draw .logo{opacity:0}
-.drawn-layer{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:3}
-.drawn-layer svg{width:100%;height:100%;display:block}
+.stage{width:420px;height:420px;display:grid;place-items:center}
+.logo-stage{position:relative;width:128px;height:128px}
+#logo{width:110px;height:110px;object-fit:contain;position:absolute;inset:0;transform-origin:center;z-index:2;}
+.drawn-layer{position:absolute;inset:0;width:100%;height:100%;z-index:3;}
+.drawn-layer svg{width:100%;height:100%;display:block;}
 .drawn-layer svg path,.drawn-layer svg rect,.drawn-layer svg circle,.drawn-layer svg ellipse,.drawn-layer svg line,.drawn-layer svg polyline,.drawn-layer svg polygon{
-  fill:none !important;
-  stroke:var(--computed-color,rgba(145,246,255,0.9)) !important;
-  stroke-width:var(--computed-stroke-width,var(--draw-width,1.5px)) !important;
-  stroke-linecap:round !important;stroke-linejoin:round !important;
-  stroke-dasharray:var(--path-len,1000px) !important;
-  stroke-dashoffset:var(--path-len,1000px);
+  fill:none !important;stroke-linecap:round !important;stroke-linejoin:round !important;
 }
-.motion-path-draw~.drawn-layer svg path,.motion-path-draw~.drawn-layer svg rect,.motion-path-draw~.drawn-layer svg circle,.motion-path-draw~.drawn-layer svg ellipse,.motion-path-draw~.drawn-layer svg line,.motion-path-draw~.drawn-layer svg polyline,.motion-path-draw~.drawn-layer svg polygon{
-  animation:draw-real ${animation.duration}ms ease-in-out infinite;
-}
-@keyframes draw-real{
-  0%{stroke-dashoffset:var(--path-len,1000px);opacity:0}
-  5%{opacity:1}
-  50%{stroke-dashoffset:0;opacity:1}
-  65%{stroke-dashoffset:0;opacity:1}
-  70%,100%{stroke-dashoffset:0;opacity:0}
-}
-@keyframes kf-logo-reveal{
-  0%,35%{opacity:0;transform:scale(1)}
-  60%,85%{opacity:1;transform:scale(1)}
-  95%,100%{opacity:0;transform:scale(1)}
-}
-.particles{position:absolute;inset:0;pointer-events:none;z-index:3;opacity:0}
-.particle{position:absolute;left:50%;top:50%;width:var(--particle-size,4px);height:var(--particle-size,4px);border-radius:999px;background:rgba(145,246,255,var(--particle-opacity,0.7));box-shadow:0 0 12px rgba(145,246,255,0.7);transform:translate(-50%,-50%)}
-.p1{--dx:calc(var(--particle-offset,32px)*1);--dy:calc(var(--particle-offset,32px)*-0.4)}
-.p2{--dx:calc(var(--particle-offset,32px)*0.45);--dy:calc(var(--particle-offset,32px)*-1)}
-.p3{--dx:calc(var(--particle-offset,32px)*-0.75);--dy:calc(var(--particle-offset,32px)*-0.8)}
-.p4{--dx:calc(var(--particle-offset,32px)*0.95);--dy:calc(var(--particle-offset,32px)*0.75)}
-.p5{--dx:calc(var(--particle-offset,32px)*-0.5);--dy:calc(var(--particle-offset,32px)*1)}
-.p6{--dx:calc(var(--particle-offset,32px)*-1);--dy:calc(var(--particle-offset,32px)*0.15)}
-.motion-particle-burst~.particles{opacity:1}
-.motion-particle-burst~.particles .particle{animation:kf-particle-burst ${animation.duration}ms ease-out infinite}
-.motion-particle-burst~.particles .p2{animation-delay:120ms}
-.motion-particle-burst~.particles .p3{animation-delay:220ms}
-.motion-particle-burst~.particles .p4{animation-delay:320ms}
-.motion-particle-burst~.particles .p5{animation-delay:420ms}
-.motion-particle-burst~.particles .p6{animation-delay:520ms}
-@keyframes kf-fade{0%{opacity:1}50%{opacity:var(--fade-min)}100%{opacity:1}}
-@keyframes kf-subtle-fade{0%,100%{opacity:0.9}50%{opacity:1}}
-@keyframes kf-scale-pulse{0%{transform:scale(var(--scale-min));opacity:0.86}50%{transform:scale(var(--scale-max));opacity:1}100%{transform:scale(var(--scale-min));opacity:0.86}}
-@keyframes kf-particle-burst{
-  0%{transform:translate(-50%,-50%) scale(0.5);opacity:0}
-  20%{opacity:1}
-  75%{transform:translate(calc(-50% + var(--dx)),calc(-50% + var(--dy))) scale(1);opacity:0.65}
-  100%{transform:translate(calc(-50% + var(--dx)),calc(-50% + var(--dy))) scale(0.8);opacity:0}
-}
-@keyframes kf-breathe{0%{transform:scale(var(--scale-min));opacity:0.94}50%{transform:scale(var(--scale-max));opacity:1}100%{transform:scale(var(--scale-min));opacity:0.94}}
-@keyframes kf-float{0%{transform:translateY(calc(var(--amp-y)*0.8));opacity:0.92}50%{transform:translateY(calc(var(--amp-y)*-1));opacity:1}100%{transform:translateY(calc(var(--amp-y)*0.8));opacity:0.92}}
-@keyframes kf-slide{0%{transform:translateY(var(--amp-y));opacity:var(--fade-min)}50%{transform:translateY(0px);opacity:1}100%{transform:translateY(calc(var(--amp-y)*-1));opacity:var(--fade-min)}}
-@keyframes kf-zoom{0%{transform:scale(calc(var(--scale-min) - 0.06));opacity:var(--fade-min)}50%{transform:scale(1);opacity:1}100%{transform:scale(var(--scale-max));opacity:var(--fade-min)}}
-@keyframes kf-blur{0%{filter:blur(0px);opacity:1}50%{filter:blur(var(--blur-max));opacity:var(--fade-min)}100%{filter:blur(0px);opacity:1}}
-@keyframes kf-tilt{0%{transform:rotate(calc(var(--rotate-deg)*-1)) scale(var(--scale-min));opacity:0.95}50%{transform:rotate(var(--rotate-deg)) scale(var(--scale-max));opacity:1}100%{transform:rotate(calc(var(--rotate-deg)*-1)) scale(var(--scale-min));opacity:0.95}}
-@keyframes kf-rotate{0%{transform:rotate(0deg);opacity:0.9}50%{transform:rotate(calc(var(--rotate-deg)*4));opacity:1}100%{transform:rotate(calc(var(--rotate-deg)*8));opacity:0.9}}
-@keyframes kf-drift{0%{transform:translateX(calc(var(--amp-x)*-1));opacity:var(--fade-min)}50%{transform:translateX(0px);opacity:1}100%{transform:translateX(var(--amp-x));opacity:var(--fade-min)}}
-@keyframes kf-pop{0%{transform:scale(var(--scale-min));opacity:0.88}20%{transform:scale(var(--scale-max));opacity:1}60%{transform:scale(calc((var(--scale-min) + var(--scale-max))/2));opacity:0.95}100%{transform:scale(var(--scale-min));opacity:0.88}}
-@keyframes kf-reveal{0%{transform:translateY(calc(var(--amp-y)*0.8)) scale(var(--scale-min));opacity:0}35%{opacity:0.8}60%{transform:translateY(0) scale(1);opacity:1}100%{transform:translateY(calc(var(--amp-y)*-0.35)) scale(1.01);opacity:0.9}}
-@keyframes kf-sweep{0%{transform:translateX(calc(var(--amp-x)*-1)) scale(var(--scale-min));opacity:var(--fade-min)}50%{transform:translateX(0) scale(1);opacity:1}100%{transform:translateX(var(--amp-x)) scale(var(--scale-max));opacity:var(--fade-min)}}
-@keyframes kf-soft-bounce{0%{transform:translateY(0) scale(var(--scale-min));opacity:0.9}22%{transform:translateY(calc(var(--amp-y)*-1)) scale(var(--scale-max));opacity:1}42%{transform:translateY(calc(var(--amp-y)*-0.3)) scale(1)}70%{transform:translateY(calc(var(--amp-y)*-0.6)) scale(calc(var(--scale-max) - 0.02))}100%{transform:translateY(0) scale(var(--scale-min));opacity:0.9}}
-@keyframes kf-blink{0%,28%,58%,100%{opacity:1;transform:scale(1)}18%,48%{opacity:var(--fade-min);transform:scale(var(--scale-min))}}
-@keyframes kf-settle{0%{transform:translateY(var(--amp-y)) scale(var(--scale-min));opacity:var(--fade-min)}50%{transform:translateY(calc(var(--amp-y)*-0.5)) scale(var(--scale-max));opacity:1}72%{transform:translateY(calc(var(--amp-y)*0.15)) scale(0.99)}100%{transform:translateY(0) scale(1);opacity:0.94}}
-@keyframes kf-glide{0%{transform:translate(calc(var(--amp-x)*-0.8),calc(var(--amp-y)*0.4)) scale(var(--scale-min));opacity:var(--fade-min)}50%{transform:translate(0,0) scale(1);opacity:1}100%{transform:translate(calc(var(--amp-x)*0.8),calc(var(--amp-y)*-0.4)) scale(var(--scale-max));opacity:var(--fade-min)}}
+.particles{position:absolute;inset:0;z-index:3;}
+.particle{position:absolute;left:50%;top:50%;border-radius:999px;transform-origin:center;}
 </style>
 </head>
 <body>
 <div class="stage">
-  <div class="logo-stage ${isPathDraw ? 'is-path-draw' : ''}">
-    <img id="logo" class="logo motion-${animation.family}" src="${dataUrl}" alt="logo"/>
+  <div class="logo-stage" id="stage">
+    <img id="logo" src="${dataUrl}" alt="logo"/>
     ${isPathDraw ? `<div class="drawn-layer" id="drawn-layer">${svgText}</div>` : ''}
   </div>
-  ${isParticleBurst ? `<div class="particles">
-    <span class="particle p1"></span><span class="particle p2"></span>
-    <span class="particle p3"></span><span class="particle p4"></span>
-    <span class="particle p5"></span><span class="particle p6"></span>
+  ${isParticleBurst ? `<div class="particles" id="particles">
+    <span class="particle" id="p1"></span><span class="particle" id="p2"></span>
+    <span class="particle" id="p3"></span><span class="particle" id="p4"></span>
+    <span class="particle" id="p5"></span><span class="particle" id="p6"></span>
   </div>` : ''}
 </div>
 <script>
-  // Measure real path lengths after SVG is rendered
-  if (${isPathDraw}) {
-    const layer = document.getElementById('drawn-layer');
-    if (layer) {
-      layer.querySelectorAll('path,rect,circle,ellipse,line,polyline,polygon').forEach(shape => {
-        try {
-          const len = shape.getTotalLength ? shape.getTotalLength() : 1000;
-          shape.style.setProperty('--path-len', len + 'px');
-          let color = shape.getAttribute('stroke');
-          if (!color || color === 'none') color = shape.getAttribute('fill');
-          if (!color || color === 'none') color = 'rgba(145,246,255,0.9)';
-          shape.style.setProperty('--computed-color', color);
-          const sw = shape.getAttribute('stroke-width');
-          if (sw) shape.style.setProperty('--computed-stroke-width', sw + 'px');
-        } catch(e){}
+const FAMILY = '${animation.family}';
+const DURATION = ${animation.duration};
+const AMP_Y = ${parseFloat(vars['--amp-y'])};
+const AMP_X = ${parseFloat(vars['--amp-x'])};
+const SCALE_MIN = ${parseFloat(vars['--scale-min'])};
+const SCALE_MAX = ${parseFloat(vars['--scale-max'])};
+const FADE_MIN = ${parseFloat(vars['--fade-min'])};
+const ROTATE_DEG = ${parseFloat(vars['--rotate-deg'])};
+const BLUR_MAX = ${parseFloat(vars['--blur-max'])};
+const PARTICLE_OFFSET = ${parseFloat(vars['--particle-offset'])};
+const PARTICLE_SIZE = ${parseFloat(vars['--particle-size'])};
+const PARTICLE_OPACITY = ${parseFloat(vars['--particle-opacity'])};
+const DRAW_WIDTH = ${parseFloat(vars['--draw-width'])};
+
+function lerp(a, b, t) { return a + (b - a) * Math.max(0, Math.min(1, t)); }
+
+// Measure path lengths
+if (FAMILY === 'path-draw') {
+  const layer = document.getElementById('drawn-layer');
+  if (layer) {
+    layer.querySelectorAll('path,rect,circle,ellipse,line,polyline,polygon').forEach(el => {
+      try {
+        const len = el.getTotalLength ? el.getTotalLength() : 1000;
+        el._pathLen = len;
+        let color = el.getAttribute('stroke');
+        if (!color || color === 'none') color = el.getAttribute('fill');
+        if (!color || color === 'none') color = 'rgba(145,246,255,0.9)';
+        el.style.stroke = color;
+        const sw = el.getAttribute('stroke-width');
+        el.style.strokeWidth = sw ? sw : (DRAW_WIDTH + 'px');
+        el.style.strokeDasharray = len + 'px';
+        el.style.strokeDashoffset = len + 'px';
+      } catch(e) {}
+    });
+  }
+}
+
+// Setup particles
+if (FAMILY === 'particle-burst') {
+  const offsets = [
+    {dx: PARTICLE_OFFSET*1,    dy: PARTICLE_OFFSET*-0.4},
+    {dx: PARTICLE_OFFSET*0.45, dy: PARTICLE_OFFSET*-1},
+    {dx: PARTICLE_OFFSET*-0.75,dy: PARTICLE_OFFSET*-0.8},
+    {dx: PARTICLE_OFFSET*0.95, dy: PARTICLE_OFFSET*0.75},
+    {dx: PARTICLE_OFFSET*-0.5, dy: PARTICLE_OFFSET*1},
+    {dx: PARTICLE_OFFSET*-1,   dy: PARTICLE_OFFSET*0.15}
+  ];
+  ['p1','p2','p3','p4','p5','p6'].forEach((id, i) => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.style.width = el.style.height = PARTICLE_SIZE + 'px';
+      el.style.background = 'rgba(145,246,255,' + PARTICLE_OPACITY + ')';
+      el.style.boxShadow = '0 0 12px rgba(145,246,255,0.7)';
+      el._dx = offsets[i].dx;
+      el._dy = offsets[i].dy;
+      el._delay = i * 0.04; // offset fractions for stagger
+    }
+  });
+}
+
+window.renderFrame = function(frameMs) {
+  const t = (frameMs % DURATION) / DURATION; // 0-1 normalized progress
+  const logo = document.getElementById('logo');
+
+  let transform = 'none';
+  let opacity = 1;
+  let filter = 'none';
+
+  switch(FAMILY) {
+    case 'notion-fade':
+    case 'fade-in-out':
+      opacity = t < 0.5 ? lerp(1, FADE_MIN, t*2) : lerp(FADE_MIN, 1, (t-0.5)*2);
+      break;
+    case 'linear-breathe': {
+      const s = t < 0.5 ? lerp(SCALE_MIN, SCALE_MAX, t*2) : lerp(SCALE_MAX, SCALE_MIN, (t-0.5)*2);
+      transform = 'scale('+s+')';
+      opacity = t < 0.5 ? lerp(0.94, 1, t*2) : lerp(1, 0.94, (t-0.5)*2);
+      break;
+    }
+    case 'vercel-float': {
+      const y = t < 0.5 ? lerp(AMP_Y*0.8, -AMP_Y, t*2) : lerp(-AMP_Y, AMP_Y*0.8, (t-0.5)*2);
+      transform = 'translateY('+y+'px)';
+      opacity = t < 0.5 ? lerp(0.92, 1, t*2) : lerp(1, 0.92, (t-0.5)*2);
+      break;
+    }
+    case 'stripe-slide': {
+      const y = t < 0.5 ? lerp(AMP_Y, 0, t*2) : lerp(0, -AMP_Y, (t-0.5)*2);
+      transform = 'translateY('+y+'px)';
+      opacity = t < 0.5 ? lerp(FADE_MIN, 1, t*2) : lerp(1, FADE_MIN, (t-0.5)*2);
+      break;
+    }
+    case 'github-zoom': {
+      const s = t < 0.5 ? lerp(SCALE_MIN-0.06, 1, t*2) : lerp(1, SCALE_MAX, (t-0.5)*2);
+      transform = 'scale('+s+')';
+      opacity = t < 0.5 ? lerp(FADE_MIN, 1, t*2) : lerp(1, FADE_MIN, (t-0.5)*2);
+      break;
+    }
+    case 'framer-blur': {
+      const b = t < 0.5 ? lerp(0, BLUR_MAX, t*2) : lerp(BLUR_MAX, 0, (t-0.5)*2);
+      filter = 'blur('+b+'px)';
+      opacity = t < 0.5 ? lerp(1, FADE_MIN, t*2) : lerp(FADE_MIN, 1, (t-0.5)*2);
+      break;
+    }
+    case 'figma-tilt': {
+      const r = t < 0.5 ? lerp(-ROTATE_DEG, ROTATE_DEG, t*2) : lerp(ROTATE_DEG, -ROTATE_DEG, (t-0.5)*2);
+      const s = t < 0.5 ? lerp(SCALE_MIN, SCALE_MAX, t*2) : lerp(SCALE_MAX, SCALE_MIN, (t-0.5)*2);
+      transform = 'rotate('+r+'deg) scale('+s+')';
+      opacity = t < 0.5 ? lerp(0.95, 1, t*2) : lerp(1, 0.95, (t-0.5)*2);
+      break;
+    }
+    case 'slack-spin':
+      transform = 'rotate('+(ROTATE_DEG*8*t)+'deg)';
+      opacity = t < 0.5 ? lerp(0.9, 1, t*2) : lerp(1, 0.9, (t-0.5)*2);
+      break;
+    case 'airtable-drift': {
+      const x = t < 0.5 ? lerp(-AMP_X, 0, t*2) : lerp(0, AMP_X, (t-0.5)*2);
+      transform = 'translateX('+x+'px)';
+      opacity = t < 0.5 ? lerp(FADE_MIN, 1, t*2) : lerp(1, FADE_MIN, (t-0.5)*2);
+      break;
+    }
+    case 'intercom-pop': {
+      const s = t < 0.2 ? lerp(SCALE_MIN, SCALE_MAX, t/0.2) : t < 0.6 ? lerp(SCALE_MAX, (SCALE_MIN+SCALE_MAX)/2, (t-0.2)/0.4) : lerp((SCALE_MIN+SCALE_MAX)/2, SCALE_MIN, (t-0.6)/0.4);
+      transform = 'scale('+s+')';
+      opacity = t < 0.2 ? lerp(0.88, 1, t/0.2) : t < 0.6 ? lerp(1, 0.95, (t-0.2)/0.4) : lerp(0.95, 0.88, (t-0.6)/0.4);
+      break;
+    }
+    case 'dropbox-reveal': {
+      const y = t < 0.6 ? lerp(AMP_Y*0.8, 0, t/0.6) : lerp(0, -AMP_Y*0.35, (t-0.6)/0.4);
+      const s = t < 0.6 ? lerp(SCALE_MIN, 1, t/0.6) : lerp(1, 1.01, (t-0.6)/0.4);
+      transform = 'translateY('+y+'px) scale('+s+')';
+      opacity = t < 0.35 ? lerp(0, 0.8, t/0.35) : t < 0.6 ? lerp(0.8, 1, (t-0.35)/0.25) : lerp(1, 0.9, (t-0.6)/0.4);
+      break;
+    }
+    case 'asana-sweep': {
+      const x = t < 0.5 ? lerp(-AMP_X, 0, t*2) : lerp(0, AMP_X, (t-0.5)*2);
+      const s = t < 0.5 ? lerp(SCALE_MIN, 1, t*2) : lerp(1, SCALE_MAX, (t-0.5)*2);
+      transform = 'translateX('+x+'px) scale('+s+')';
+      opacity = t < 0.5 ? lerp(FADE_MIN, 1, t*2) : lerp(1, FADE_MIN, (t-0.5)*2);
+      break;
+    }
+    case 'shopify-soft-bounce': {
+      const y = t < 0.22 ? lerp(0,-AMP_Y, t/0.22) : t < 0.42 ? lerp(-AMP_Y,-AMP_Y*0.3,(t-0.22)/0.2) : t < 0.7 ? lerp(-AMP_Y*0.3,-AMP_Y*0.6,(t-0.42)/0.28) : lerp(-AMP_Y*0.6,0,(t-0.7)/0.3);
+      const s = t < 0.22 ? lerp(SCALE_MIN, SCALE_MAX, t/0.22) : lerp(SCALE_MAX, SCALE_MIN, (t-0.22)/0.78);
+      transform = 'translateY('+y+'px) scale('+s+')';
+      opacity = t < 0.22 ? lerp(0.9, 1, t/0.22) : lerp(1, 0.9, (t-0.22)/0.78);
+      break;
+    }
+    case 'monday-blink': {
+      const inBlink = (t > 0.18 && t < 0.28) || (t > 0.48 && t < 0.58);
+      opacity = inBlink ? FADE_MIN : 1;
+      transform = 'scale('+(inBlink ? SCALE_MIN : 1)+')';
+      break;
+    }
+    case 'loom-settle': {
+      const y = t < 0.5 ? lerp(AMP_Y,-AMP_Y*0.5,t*2) : t < 0.72 ? lerp(-AMP_Y*0.5,AMP_Y*0.15,(t-0.5)/0.22) : lerp(AMP_Y*0.15,0,(t-0.72)/0.28);
+      const s = t < 0.5 ? lerp(SCALE_MIN,SCALE_MAX,t*2) : t < 0.72 ? lerp(SCALE_MAX,0.99,(t-0.5)/0.22) : lerp(0.99,1,(t-0.72)/0.28);
+      transform = 'translateY('+y+'px) scale('+s+')';
+      opacity = t < 0.5 ? lerp(FADE_MIN, 1, t*2) : lerp(1, 0.94, (t-0.5)*2);
+      break;
+    }
+    case 'canva-glide': {
+      const x = t < 0.5 ? lerp(-AMP_X*0.8,0,t*2) : lerp(0,AMP_X*0.8,(t-0.5)*2);
+      const y = t < 0.5 ? lerp(AMP_Y*0.4,0,t*2) : lerp(0,-AMP_Y*0.4,(t-0.5)*2);
+      const s = t < 0.5 ? lerp(SCALE_MIN,1,t*2) : lerp(1,SCALE_MAX,(t-0.5)*2);
+      transform = 'translate('+x+'px,'+y+'px) scale('+s+')';
+      opacity = t < 0.5 ? lerp(FADE_MIN,1,t*2) : lerp(1,FADE_MIN,(t-0.5)*2);
+      break;
+    }
+    case 'scale-pulse': {
+      const s = t < 0.5 ? lerp(SCALE_MIN,SCALE_MAX,t*2) : lerp(SCALE_MAX,SCALE_MIN,(t-0.5)*2);
+      transform = 'scale('+s+')';
+      opacity = t < 0.5 ? lerp(0.86,1,t*2) : lerp(1,0.86,(t-0.5)*2);
+      break;
+    }
+    case 'path-draw': {
+      // Logo fill reveal: fades in 35%-60%, holds, fades out 95%-100%
+      if (t < 0.35) opacity = 0;
+      else if (t < 0.60) opacity = lerp(0,1,(t-0.35)/0.25);
+      else if (t < 0.85) opacity = 1;
+      else if (t < 0.95) opacity = lerp(1,0,(t-0.85)/0.10);
+      else opacity = 0;
+
+      // Path trace
+      const paths = document.querySelectorAll('.drawn-layer svg path,.drawn-layer svg rect,.drawn-layer svg circle,.drawn-layer svg ellipse,.drawn-layer svg line,.drawn-layer svg polyline,.drawn-layer svg polygon');
+      paths.forEach(path => {
+        const len = path._pathLen || 1000;
+        let pOpacity = 0, dashOff = len;
+        if (t < 0.05) { pOpacity = lerp(0,1,t/0.05); dashOff = len; }
+        else if (t < 0.50) { pOpacity = 1; dashOff = lerp(len,0,(t-0.05)/0.45); }
+        else if (t < 0.65) { pOpacity = 1; dashOff = 0; }
+        else if (t < 0.70) { pOpacity = lerp(1,0,(t-0.65)/0.05); dashOff = 0; }
+        else { pOpacity = 0; dashOff = 0; }
+        path.style.strokeDashoffset = dashOff + 'px';
+        path.style.opacity = pOpacity;
       });
+      break;
+    }
+    case 'particle-burst': {
+      opacity = t < 0.5 ? lerp(0.9,1,t*2) : lerp(1,0.9,(t-0.5)*2);
+      // Animate particles
+      ['p1','p2','p3','p4','p5','p6'].forEach((id, i) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        const pt = Math.max(0, (t - el._delay) / (1 - el._delay));
+        if (pt < 0.2) { el.style.opacity = lerp(0,1,pt/0.2); el.style.transform = 'translate(-50%,-50%) scale('+lerp(0.5,1,pt/0.2)+')'; }
+        else if (pt < 0.75) { const r = lerp(0,1,(pt-0.2)/0.55); el.style.opacity = lerp(1,0.65,r); el.style.transform = 'translate(calc(-50% + '+lerp(0,el._dx,r)+'px), calc(-50% + '+lerp(0,el._dy,r)+'px)) scale(1)'; }
+        else { const r2 = lerp(0,1,(pt-0.75)/0.25); el.style.opacity = lerp(0.65,0,r2); el.style.transform = 'translate(calc(-50% + '+el._dx+'px), calc(-50% + '+el._dy+'px)) scale('+lerp(1,0.8,r2)+')'; }
+      });
+      break;
     }
   }
-  window.animationReady = true;
+
+  logo.style.transform = transform;
+  logo.style.opacity = opacity;
+  logo.style.filter = filter;
+};
+
+window.ready = true;
 </script>
 </body>
 </html>`;
@@ -159,39 +267,43 @@ html,body{width:420px;height:420px;overflow:hidden;background:transparent}
 export async function POST(req) {
   let browser = null;
   try {
-    const { animId, logoSvgText, logoSrc, duration, fps } = await req.json();
-    const targetFps = fps || 30;
+    const { animId, logoSvgText, logoSrc, fps } = await req.json();
+    const targetFps = Number(fps) || 30;
     const svgText = logoSvgText || '';
 
     const animation = ANIMATIONS.find(a => a.id === animId) ?? ANIMATIONS[0];
-    const html = buildHtml(animation, svgText);
+    const animDuration = animation.duration;
 
     browser = await puppeteer.launch({
       headless: 'new',
-      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+      args: ['--no-sandbox','--disable-setuid-sandbox','--disable-dev-shm-usage','--disable-background-timer-throttling'],
       defaultViewport: { width: 420, height: 420, deviceScaleFactor: 1 }
     });
 
     const page = await browser.newPage();
+    await page.setContent(buildHtml(animation, svgText), { waitUntil: 'domcontentloaded' });
 
-    // Use setContent — completely bypasses Next.js, zero chrome
-    await page.setContent(html, { waitUntil: 'domcontentloaded' });
+    // Wait for setup script to run
+    await page.waitForFunction('window.ready === true', { timeout: 5000 });
 
-    // Wait for inline script to fire and SVG to render
-    await page.waitForFunction('window.animationReady === true', { timeout: 5000 });
+    // Let the page fully render the logo image
+    await page.evaluate(() => new Promise(r => setTimeout(r, 400)));
 
-    // Wait for first animation cycle to actually start painting
-    await new Promise(r => setTimeout(r, 200));
-
-    const safeDuration = Number(duration) + 200;
-    const frameCount = Math.ceil(safeDuration / (1000 / targetFps));
+    const frameCount = Math.ceil((animDuration / 1000) * targetFps);
+    const frameDelayMs = animDuration / frameCount;
     const buffers = [];
 
-    const captureStart = Date.now();
     for (let i = 0; i < frameCount; i++) {
-      const expected = captureStart + i * (1000 / targetFps);
-      const delay = expected - Date.now();
-      if (delay > 0) await new Promise(r => setTimeout(r, delay));
+      const frameTimeMs = i * frameDelayMs;
+
+      // Render this frame in JS (no CSS animations involved)
+      await page.evaluate((t) => {
+        window.renderFrame(t);
+      }, frameTimeMs);
+
+      // Wait for paint
+      await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
+
       buffers.push(await page.screenshot({
         type: 'png',
         omitBackground: true,
@@ -205,7 +317,7 @@ export async function POST(req) {
     const encoder = new GIFEncoder(420, 420);
     encoder.start();
     encoder.setRepeat(0);
-    encoder.setDelay(Math.round(1000 / targetFps));
+    encoder.setDelay(Math.round(animDuration / frameCount));
     encoder.setQuality(5);
 
     for (const buffer of buffers) {

@@ -417,7 +417,7 @@ button:disabled {
     opacity: 1;
     transform: scale(1);
   }
-  
+
   95%,
   100% {
     opacity: 0;
