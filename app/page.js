@@ -219,8 +219,44 @@ export default function Home() {
     setSelectedAnimationId(id);
   };
 
-  const exportGif = () => {
-    setStatusText("Built-in GIF export can't capture CSS/SVG path animations perfectly. Please use a free Windows tool like 'ScreenToGif' or 'LICEcap' to record the preview area.");
+  const exportGif = async () => {
+    try {
+      setIsExporting(true);
+      setStatusText("Rendering high-quality GIF on server... This may take up to 10 seconds.");
+
+      const response = await fetch('/api/export', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          animId: selectedAnimation.id,
+          viewBox: logoViewBox,
+          logoHtml: logoHtml,
+          logoSrc: logoSrc,
+          duration: selectedAnimation.duration
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error("Server rendering failed.");
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `logo-loader-${selectedAnimation.id}.gif`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+
+      setStatusText("GIF exported successfully!");
+    } catch (err) {
+      console.error(err);
+      setStatusText("Failed to export GIF from server.");
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   return (
