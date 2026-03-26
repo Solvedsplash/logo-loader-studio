@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useState, useRef, useCallback } from "react";
+import { Suspense, useEffect, useState, useRef } from "react";
 import { useSearchParams } from "next/navigation";
-import { ANIMATIONS } from "../page";
+import { ANIMATIONS } from "../animations";
+import { renderFrame } from "../../lib/animation-engine";
 
-export default function RenderPage() {
+function RenderPageContent() {
   const searchParams = useSearchParams();
   const id = Number(searchParams.get("anim")) || 1;
-  
   const [logoSvgText, setLogoSvgText] = useState("");
   const [logoDataUrl, setLogoDataUrl] = useState("");
   const [animationStarted, setAnimationStarted] = useState(false);
@@ -20,13 +20,15 @@ export default function RenderPage() {
   const isPathDraw = selectedAnimation.family === "path-draw";
   const isParticleBurst = selectedAnimation.family === "particle-burst";
 
+  // Pre-calculate path lengths for the engine
   useEffect(() => {
     if (!drawnLayerRef.current) return;
     const shapes = drawnLayerRef.current.querySelectorAll("path, rect, circle, ellipse, line, polyline, polygon");
     shapes.forEach(shape => {
       try {
-        const len = shape.getTotalLength ? shape.getTotalLength() : 1000;
-        shape.style.setProperty('--path-len', `${len}px`);
+        shape._pathLen = shape.getTotalLength ? shape.getTotalLength() : 1000;
+        // Also set as CSS variable for convenience if needed by other components
+        shape.style.setProperty('--path-len', `${shape._pathLen}px`);
       } catch (e) {}
     });
   }, [logoSvgText]);
@@ -35,48 +37,63 @@ export default function RenderPage() {
     // Puppeteer calls this function to inject the logo
     window.loadLogoHtml = (svgText) => {
       setLogoSvgText(svgText);
-      // Build a proper data URL from the SVG text — blob URLs don't work across browser sessions
       const dataUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgText)}`;
       setLogoDataUrl(dataUrl);
       setAnimationStarted(true);
     };
   }, []);
 
+  // Centralized Animation Loop
   useEffect(() => {
-    if (animationStarted && previewRootRef.current) {
-      const logo = logoRef.current;
-      const previewRoot = previewRootRef.current;
+    if (!animationStarted || !logoRef.current) return;
 
-      if (logo) {
-        Object.entries(selectedAnimation.vars).forEach(([key, value]) => {
-          logo.style.setProperty(key, value);
-        });
-        logo.style.setProperty("--duration", `${selectedAnimation.duration}ms`);
-        logo.style.animationDuration = `${selectedAnimation.duration}ms`;
-        logo.style.animationTimingFunction = selectedAnimation.easing;
-      }
+    let start = performance.now();
+    let raf;
 
-      if (previewRoot) {
-        Object.entries(selectedAnimation.vars).forEach(([key, value]) => {
-          previewRoot.style.setProperty(key, value);
-        });
-        previewRoot.style.setProperty("--duration", `${selectedAnimation.duration}ms`);
-        previewRoot.style.animationDuration = `${selectedAnimation.duration}ms`;
-        previewRoot.style.animationTimingFunction = selectedAnimation.easing;
-      }
+    const loop = (now) => {
+      const elapsed = now - start;
+      
+      const paths = drawnLayerRef.current 
+        ? drawnLayerRef.current.querySelectorAll("path, rect, circle, ellipse, line, polyline, polygon") 
+        : null;
+      const particles = previewRootRef.current 
+        ? previewRootRef.current.querySelectorAll(".particle") 
+        : null;
 
-      // Tell Puppeteer we are ready to record after CSS parses
-      setTimeout(() => {
-        window.animationReady = true;
-        window.animationDurationMs = selectedAnimation.duration;
-      }, 100);
-    }
+      renderFrame(elapsed, {
+        logo: logoRef.current,
+        paths,
+        particles
+      }, selectedAnimation);
+
+      raf = requestAnimationFrame(loop);
+    };
+
+    // Expose to window for Puppeteer frame-by-frame capture
+    window.renderFrame = (t) => {
+      const paths = drawnLayerRef.current 
+        ? drawnLayerRef.current.querySelectorAll("path, rect, circle, ellipse, line, polyline, polygon") 
+        : null;
+      const particles = previewRootRef.current 
+        ? previewRootRef.current.querySelectorAll(".particle") 
+        : null;
+      renderFrame(t, { logo: logoRef.current, paths, particles }, selectedAnimation);
+    };
+
+    raf = requestAnimationFrame(loop);
+
+    // Tell Puppeteer we are ready
+    window.animationReady = true;
+    window.animationDurationMs = selectedAnimation.duration;
+
+    return () => {
+      if (raf) cancelAnimationFrame(raf);
+    };
   }, [animationStarted, selectedAnimation]);
 
   if (!animationStarted) {
     return (
       <div style={{ width: "420px", height: "420px", background: "transparent" }}>
-        {/* Waiting for Puppeteer... */}
       </div>
     );
   }
@@ -85,7 +102,7 @@ export default function RenderPage() {
     <div style={{ padding: 0, margin: 0, width: "420px", height: "420px", display: "grid", placeItems: "center", background: "transparent" }}>
       <div 
         ref={previewRootRef} 
-        className={`preview-root ${isPathDraw ? "is-path-draw" : ""}`}
+        className="preview-root"
         style={{ width: "420px", height: "420px", margin: 0, border: "none", borderRadius: 0, background: "transparent" }}
       >
         <div className="logo-stage">
@@ -93,8 +110,9 @@ export default function RenderPage() {
             <img 
               ref={logoRef} 
               src={logoDataUrl} 
-              className={`logo motion-${selectedAnimation.family}`} 
+              className="logo" 
               alt="Logo" 
+              style={{ background: "transparent" }}
             />
           )}
           {isPathDraw && logoSvgText && (
@@ -108,16 +126,24 @@ export default function RenderPage() {
         </div>
         
         {isParticleBurst && (
-          <div className="particles" aria-hidden="true" style={{ opacity: 1 }}>
-            <span className="particle p1" style={{ animation: "kf-particle-burst var(--duration, 1500ms) ease-out infinite" }} />
-            <span className="particle p2" style={{ animation: "kf-particle-burst var(--duration, 1500ms) ease-out infinite", animationDelay: "120ms" }} />
-            <span className="particle p3" style={{ animation: "kf-particle-burst var(--duration, 1500ms) ease-out infinite", animationDelay: "220ms" }} />
-            <span className="particle p4" style={{ animation: "kf-particle-burst var(--duration, 1500ms) ease-out infinite", animationDelay: "320ms" }} />
-            <span className="particle p5" style={{ animation: "kf-particle-burst var(--duration, 1500ms) ease-out infinite", animationDelay: "420ms" }} />
-            <span className="particle p6" style={{ animation: "kf-particle-burst var(--duration, 1500ms) ease-out infinite", animationDelay: "520ms" }} />
+          <div className="particles" aria-hidden="true">
+            <span className="particle p1" />
+            <span className="particle p2" />
+            <span className="particle p3" />
+            <span className="particle p4" />
+            <span className="particle p5" />
+            <span className="particle p6" />
           </div>
         )}
       </div>
     </div>
+  );
+}
+
+export default function RenderPage() {
+  return (
+    <Suspense>
+      <RenderPageContent />
+    </Suspense>
   );
 }

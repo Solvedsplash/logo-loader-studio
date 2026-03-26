@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useCallback } from "react";
-
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ANIMATIONS, TOTAL_ANIMATIONS } from './animations';
+import { renderFrame } from '../lib/animation-engine';
+
 const DEFAULT_ANIMATION_ID = 1;
 
 function getDefaultLogoText() {
@@ -64,19 +65,17 @@ function processSvgString(svgText) {
 export default function Home() {
   const [selectedAnimationId, setSelectedAnimationId] = useState(DEFAULT_ANIMATION_ID);
   const [statusText, setStatusText] = useState("Ready.");
-  
+
   const initialSvgText = getDefaultLogoText();
   const [logoSrc, setLogoSrc] = useState(`data:image/svg+xml;charset=utf-8,${encodeURIComponent(initialSvgText)}`);
-  
-  // We initialize with the processed default SVG
   const [logoSvgText, setLogoSvgText] = useState("");
   const [isExporting, setIsExporting] = useState(false);
   const [exportFps, setExportFps] = useState(30);
+  
   const logoRef = useRef(null);
   const previewRootRef = useRef(null);
   const drawnLayerRef = useRef(null);
-  
-  // Set processed SVG properly on mount
+
   useEffect(() => {
     setLogoSvgText(processSvgString(initialSvgText) || "");
   }, [initialSvgText]);
@@ -84,40 +83,53 @@ export default function Home() {
   const selectedAnimation = useMemo(() => {
     return ANIMATIONS.find((a) => a.id === selectedAnimationId) ?? ANIMATIONS[0];
   }, [selectedAnimationId]);
-  
+
   const isPathDraw = selectedAnimation.family === "path-draw";
   const isParticleBurst = selectedAnimation.family === "particle-burst";
 
+  // Pre-calculate path lengths for the engine
   useEffect(() => {
     if (!drawnLayerRef.current) return;
     const shapes = drawnLayerRef.current.querySelectorAll("path, rect, circle, ellipse, line, polyline, polygon");
     shapes.forEach(shape => {
       try {
-        const len = shape.getTotalLength ? shape.getTotalLength() : 1000;
-        shape.style.setProperty('--path-len', `${len}px`);
-      } catch (e) {}
+        shape._pathLen = shape.getTotalLength ? shape.getTotalLength() : 1000;
+        shape.style.setProperty('--path-len', `${shape._pathLen}px`);
+      } catch (e) { }
     });
   }, [logoSvgText]);
 
+  // Main UI Animation Loop
   useEffect(() => {
-    const logo = logoRef.current;
-    const previewRoot = previewRootRef.current;
-    if (!logo || !previewRoot) return;
-    
-    Object.entries(selectedAnimation.vars).forEach(([key, value]) => {
-      logo.style.setProperty(key, value);
-      previewRoot.style.setProperty(key, value);
-    });
-    
-    logo.style.setProperty("--duration", `${selectedAnimation.duration}ms`);
-    previewRoot.style.setProperty("--duration", `${selectedAnimation.duration}ms`);
-    
-    logo.style.animationDuration = `${selectedAnimation.duration}ms`;
-    logo.style.animationTimingFunction = selectedAnimation.easing;
-    previewRoot.style.animationDuration = `${selectedAnimation.duration}ms`;
-    previewRoot.style.animationTimingFunction = selectedAnimation.easing;
-    
+    if (!logoRef.current) return;
+
+    let start = performance.now();
+    let raf;
+
+    const loop = (now) => {
+      const elapsed = now - start;
+      const paths = drawnLayerRef.current 
+        ? drawnLayerRef.current.querySelectorAll("path, rect, circle, ellipse, line, polyline, polygon") 
+        : null;
+      const particles = previewRootRef.current 
+        ? previewRootRef.current.querySelectorAll(".particle") 
+        : null;
+
+      renderFrame(elapsed, {
+        logo: logoRef.current,
+        paths,
+        particles
+      }, selectedAnimation);
+
+      raf = requestAnimationFrame(loop);
+    };
+
+    raf = requestAnimationFrame(loop);
     setStatusText(`Applied ${selectedAnimation.name}.`);
+
+    return () => {
+      if (raf) cancelAnimationFrame(raf);
+    };
   }, [selectedAnimation]);
 
   useEffect(() => {
@@ -160,13 +172,25 @@ export default function Home() {
       setIsExporting(true);
       setStatusText("Rendering pixel-perfect GIF on server... (Processing 60+ HD frames)");
 
+      // Robustly get the logo data (blob leads to 404 on server)
+      let finalLogoData = logoSrc;
+      if (logoSrc.startsWith('blob:')) {
+        const response = await fetch(logoSrc);
+        const blob = await response.blob();
+        finalLogoData = await new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result);
+          reader.readAsDataURL(blob);
+        });
+      }
+
       const response = await fetch('/api/export', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           animId: selectedAnimation.id,
-          logoSvgText: logoSvgText,
-          logoSrc: logoSrc,
+          logoData: finalLogoData,
+          logoSvgText: logoSvgText, // Still needed for path drawing
           duration: selectedAnimation.duration,
           fps: exportFps
         })
@@ -207,7 +231,7 @@ export default function Home() {
         </label>
 
         <label className="control">
-          <span>Animation ({TOTAL_ANIMATIONS} curated presets, 3 variants each)</span>
+          <span>Animation ({TOTAL_ANIMATIONS} curated presets)</span>
           <select
             value={selectedAnimationId}
             onChange={(e) => setSelectedAnimationId(Number(e.target.value || "1"))}
@@ -225,7 +249,7 @@ export default function Home() {
           <select value={exportFps} onChange={(e) => setExportFps(Number(e.target.value))}>
             <option value={30}>30 FPS (Standard)</option>
             <option value={40}>40 FPS (Smooth)</option>
-            <option value={60}>60 FPS (Ultra Smooth - Slower Export)</option>
+            <option value={50}>50 FPS (Pro Studio - Perfect Motion)</option>
           </select>
         </label>
 
@@ -239,33 +263,32 @@ export default function Home() {
       </section>
 
       <section className="panel preview-panel">
-        <div ref={previewRootRef} className={`preview-root ${isPathDraw ? "is-path-draw" : ""}`}>
+        <div ref={previewRootRef} className="preview-root">
           <div className="logo-stage">
             <img
               ref={logoRef}
               src={logoSrc}
-              className={`logo motion-${selectedAnimation.family}`}
+              className="logo"
               alt="Your logo preview"
             />
             {isPathDraw && logoSvgText && (
-              <div 
-                className="drawn-layer" 
-                aria-hidden="true" 
+              <div
+                className="drawn-layer"
+                aria-hidden="true"
                 ref={drawnLayerRef}
-                dangerouslySetInnerHTML={{ __html: logoSvgText }} 
+                dangerouslySetInnerHTML={{ __html: logoSvgText }}
               />
             )}
           </div>
 
-          {/* Particles re-implemented simply outside of drawn layers */}
           {isParticleBurst && (
-            <div className="particles" aria-hidden="true" style={{ opacity: 1 }}>
-              <span className="particle p1" style={{ animation: "kf-particle-burst var(--duration, 1500ms) ease-out infinite" }} />
-              <span className="particle p2" style={{ animation: "kf-particle-burst var(--duration, 1500ms) ease-out infinite", animationDelay: "120ms" }} />
-              <span className="particle p3" style={{ animation: "kf-particle-burst var(--duration, 1500ms) ease-out infinite", animationDelay: "220ms" }} />
-              <span className="particle p4" style={{ animation: "kf-particle-burst var(--duration, 1500ms) ease-out infinite", animationDelay: "320ms" }} />
-              <span className="particle p5" style={{ animation: "kf-particle-burst var(--duration, 1500ms) ease-out infinite", animationDelay: "420ms" }} />
-              <span className="particle p6" style={{ animation: "kf-particle-burst var(--duration, 1500ms) ease-out infinite", animationDelay: "520ms" }} />
+            <div className="particles" aria-hidden="true">
+              <span className="particle p1" />
+              <span className="particle p2" />
+              <span className="particle p3" />
+              <span className="particle p4" />
+              <span className="particle p5" />
+              <span className="particle p6" />
             </div>
           )}
         </div>

@@ -149,6 +149,7 @@ button:disabled {
   z-index: 2;
 }
 
+/* 
 .motion-notion-fade {
   animation-name: kf-fade;
 }
@@ -228,6 +229,7 @@ button:disabled {
 .motion-fade-in-out {
   animation-name: kf-fade;
 }
+*/
 
 .drawn-layer {
   position: absolute;
@@ -260,6 +262,7 @@ button:disabled {
   stroke-dashoffset: var(--path-len, 1000px);
 }
 
+/*
 .motion-path-draw~.drawn-layer svg path,
 .motion-path-draw~.drawn-layer svg rect,
 .motion-path-draw~.drawn-layer svg circle,
@@ -269,6 +272,7 @@ button:disabled {
 .motion-path-draw~.drawn-layer svg polygon {
   animation: draw-real var(--duration, 2200ms) ease-in-out infinite;
 }
+*/
 
 @keyframes draw-real {
   0% {
@@ -354,6 +358,7 @@ button:disabled {
   opacity: 1;
 }
 
+/*
 .motion-particle-burst~.particles .particle {
   animation: kf-particle-burst var(--duration, 1500ms) ease-out infinite;
 }
@@ -377,6 +382,7 @@ button:disabled {
 .motion-particle-burst~.particles .p6 {
   animation-delay: 520ms;
 }
+*/
 
 @keyframes kf-fade {
   0% {
