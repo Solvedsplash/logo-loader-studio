@@ -1,4 +1,3 @@
-import puppeteer from 'puppeteer';
 import ffmpegStatic from 'ffmpeg-static';
 import { spawn } from 'child_process';
 import { NextResponse } from 'next/server';
@@ -8,6 +7,27 @@ import { renderFrame } from '../../../lib/animation-engine';
 
 export const maxDuration = 60;
 export const dynamic = 'force-dynamic';
+
+const isVercel = !!process.env.VERCEL || process.env.NODE_ENV === 'production';
+
+async function getBrowser() {
+  if (isVercel) {
+    const chromium = (await import('@sparticuz/chromium')).default;
+    const puppeteerCore = (await import('puppeteer-core')).default;
+    return puppeteerCore.launch({
+      args: chromium.args,
+      defaultViewport: chromium.defaultViewport,
+      executablePath: await chromium.executablePath(),
+      headless: chromium.headless,
+    });
+  } else {
+    const puppeteer = (await import('puppeteer')).default;
+    return puppeteer.launch({
+      headless: 'new',
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu']
+    });
+  }
+}
 
 function getFFmpegPath() {
   if (!ffmpegStatic) return 'ffmpeg';
@@ -29,12 +49,9 @@ export async function POST(req) {
     const frameCount = Math.ceil((animation.duration / 1000) * targetFps);
     const frameDelayMs = animation.duration / frameCount;
 
-    console.log(`[Export] Starting session: ${animation.name} (${frameCount} frames) | Transparency: ${!backgroundColor}`);
+    console.log(`[Export] Starting session: ${animation.name} (${frameCount} frames) | Transparency: ${!backgroundColor} | Env: ${isVercel ? 'Vercel' : 'Local'}`);
 
-    browser = await puppeteer.launch({
-      headless: 'new',
-      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu']
-    });
+    browser = await getBrowser();
 
     const page = await browser.newPage();
     await page.setViewport({ width: 420, height: 420, deviceScaleFactor: 2 });
