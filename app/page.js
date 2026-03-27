@@ -16,49 +16,53 @@ function getDefaultLogoText() {
     "</svg>";
 }
 
-function processSvgString(svgText) {
+function getPathData(svgText) {
   try {
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(svgText, "image/svg+xml");
-    const root = doc.querySelector("svg");
-    if (!root) return null;
+    // To get accurate path lengths, the SVG must be part of the rendered DOM.
+    const measureContainer = document.createElement('div');
+    measureContainer.style.cssText = 'position:absolute;visibility:hidden;width:0;height:0;overflow:hidden;top:-9999px;';
+    measureContainer.innerHTML = svgText;
+    document.body.appendChild(measureContainer);
 
-    if (!root.getAttribute('viewBox')) {
-      const w = root.getAttribute('width') || '220';
-      const h = root.getAttribute('height') || '220';
-      root.setAttribute('viewBox', `0 0 ${w.replace(/[^0-9.]/g, '')} ${h.replace(/[^0-9.]/g, '')}`);
+    const svgEl = measureContainer.querySelector('svg');
+    if (!svgEl) {
+      document.body.removeChild(measureContainer);
+      return [];
     }
-    root.setAttribute("preserveAspectRatio", "xMidYMid meet");
 
-    const getEffectiveColor = (el) => {
-      let current = el;
-      while (current && current.tagName !== 'svg') {
-        const candidate = current.style?.fill || current.getAttribute("fill") || current.style?.stroke || current.getAttribute("stroke");
-        if (candidate && candidate !== "none" && candidate !== "transparent" && candidate !== "currentColor") return candidate;
-        current = current.parentElement;
+    const paths = svgEl.querySelectorAll("path, rect, circle, ellipse, line, polyline, polygon");
+    const data = Array.from(paths).map(node => {
+      let d = "";
+      if (node.tagName === "path") d = node.getAttribute("d");
+      else if (node.tagName === "rect") {
+        const x = parseFloat(node.getAttribute("x") || 0), 
+              y = parseFloat(node.getAttribute("y") || 0), 
+              w = parseFloat(node.getAttribute("width")), 
+              h = parseFloat(node.getAttribute("height"));
+        d = `M${x} ${y}h${w}v${h}h-${w}z`;
+      } else if (node.tagName === "circle") {
+        const cx = parseFloat(node.getAttribute("cx")), 
+              cy = parseFloat(node.getAttribute("cy")), 
+              r = parseFloat(node.getAttribute("r"));
+        d = `M${cx - r} ${cy}a${r} ${r} 0 1 0 ${r * 2} 0a${r} ${r} 0 1 0 -${r * 2} 0`;
       }
-      return "rgba(145, 246, 255, 0.9)";
-    };
+      
+      const length = node.getTotalLength ? node.getTotalLength() : 1000;
+      const getAttr = (name) => node.style[name] || node.getAttribute(name);
+      
+      return {
+        d: d || node.getAttribute("d"),
+        length,
+        color: getAttr("stroke") || getAttr("fill") || "#91f6ff",
+        strokeWidth: getAttr("stroke-width") || "2"
+      };
+    }).filter(p => p.d);
 
-    const getEffectiveStrokeWidth = (el) => {
-      let current = el;
-      while (current && current.tagName !== 'svg') {
-        const sw = current.style?.strokeWidth || current.getAttribute("stroke-width");
-        if (sw) return sw;
-        current = current.parentElement;
-      }
-      return "var(--draw-width, 1.5px)";
-    };
-
-    const shapes = root.querySelectorAll("path, rect, circle, ellipse, line, polyline, polygon");
-    shapes.forEach(node => {
-      node.style.setProperty('--computed-color', getEffectiveColor(node));
-      node.style.setProperty('--computed-stroke-width', getEffectiveStrokeWidth(node));
-    });
-
-    return root.outerHTML;
-  } catch {
-    return null;
+    document.body.removeChild(measureContainer);
+    return data;
+  } catch (err) {
+    console.warn("Path data extraction failed:", err);
+    return [];
   }
 }
 
@@ -67,59 +71,48 @@ export default function Home() {
   const [statusText, setStatusText] = useState("Ready.");
 
   const initialSvgText = getDefaultLogoText();
-  const [logoSrc, setLogoSrc] = useState(`data:image/svg+xml;charset=utf-8,${encodeURIComponent(initialSvgText)}`);
+  const [logoImg, setLogoImg] = useState(null);
   const [logoSvgText, setLogoSvgText] = useState("");
+  const [svgPathData, setSvgPathData] = useState([]);
   const [isExporting, setIsExporting] = useState(false);
   const [exportFps, setExportFps] = useState(30);
   
-  const logoRef = useRef(null);
-  const previewRootRef = useRef(null);
-  const drawnLayerRef = useRef(null);
+  const canvasRef = useRef(null);
 
+  // Load Logo Image
   useEffect(() => {
-    setLogoSvgText(processSvgString(initialSvgText) || "");
-  }, [initialSvgText]);
+    const img = new Image();
+    const svgText = logoSvgText || initialSvgText;
+    const blob = new Blob([svgText], { type: 'image/svg+xml;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    
+    img.onload = () => {
+      setLogoImg(img);
+      setSvgPathData(getPathData(svgText));
+    };
+    img.src = url;
+
+    return () => URL.revokeObjectURL(url);
+  }, [logoSvgText, initialSvgText]);
 
   const selectedAnimation = useMemo(() => {
     return ANIMATIONS.find((a) => a.id === selectedAnimationId) ?? ANIMATIONS[0];
   }, [selectedAnimationId]);
 
-  const isPathDraw = selectedAnimation.family === "path-draw";
-  const isParticleBurst = selectedAnimation.family === "particle-burst";
-
-  // Pre-calculate path lengths for the engine
+  // Main UI Animation Loop (Canvas Version)
   useEffect(() => {
-    if (!drawnLayerRef.current) return;
-    const shapes = drawnLayerRef.current.querySelectorAll("path, rect, circle, ellipse, line, polyline, polygon");
-    shapes.forEach(shape => {
-      try {
-        shape._pathLen = shape.getTotalLength ? shape.getTotalLength() : 1000;
-        shape.style.setProperty('--path-len', `${shape._pathLen}px`);
-      } catch (e) { }
-    });
-  }, [logoSvgText]);
+    if (!canvasRef.current || !logoImg) return;
 
-  // Main UI Animation Loop
-  useEffect(() => {
-    if (!logoRef.current) return;
-
+    const ctx = canvasRef.current.getContext("2d");
     let start = performance.now();
     let raf;
 
     const loop = (now) => {
       const elapsed = now - start;
-      const paths = drawnLayerRef.current 
-        ? drawnLayerRef.current.querySelectorAll("path, rect, circle, ellipse, line, polyline, polygon") 
-        : null;
-      const particles = previewRootRef.current 
-        ? previewRootRef.current.querySelectorAll(".particle") 
-        : null;
+      const duration = selectedAnimation.duration;
+      const progress = (elapsed % duration) / duration;
 
-      renderFrame(elapsed, {
-        logo: logoRef.current,
-        paths,
-        particles
-      }, selectedAnimation);
+      renderFrame(ctx, progress, logoImg, selectedAnimation, svgPathData);
 
       raf = requestAnimationFrame(loop);
     };
@@ -130,35 +123,22 @@ export default function Home() {
     return () => {
       if (raf) cancelAnimationFrame(raf);
     };
-  }, [selectedAnimation]);
-
-  useEffect(() => {
-    return () => {
-      if (logoSrc.startsWith("blob:")) URL.revokeObjectURL(logoSrc);
-    };
-  }, [logoSrc]);
+  }, [selectedAnimation, logoImg, svgPathData]);
 
   const onLogoChange = (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    const objectUrl = URL.createObjectURL(file);
-    setLogoSrc((prev) => {
-      if (prev.startsWith("blob:")) URL.revokeObjectURL(prev);
-      return objectUrl;
-    });
-
     if (file.type === "image/svg+xml" || file.name.toLowerCase().endsWith(".svg")) {
       const reader = new FileReader();
       reader.onload = () => {
         const text = String(reader.result || "");
-        setLogoSvgText(processSvgString(text) || "");
-        setStatusText(`Logo imported: ${file.name} (perfect path tracking active)`);
+        setLogoSvgText(text);
+        setStatusText(`Logo imported: ${file.name} (Canvas-synthesized HD active)`);
       };
       reader.readAsText(file);
     } else {
-      setLogoSvgText("");
-      setStatusText(`Logo imported: ${file.name} (SVG required for path drawing)`);
+      setStatusText(`Error: Please import an SVG logo for the canvas engine.`);
     }
   };
 
@@ -170,33 +150,20 @@ export default function Home() {
   const exportGif = async () => {
     try {
       setIsExporting(true);
-      setStatusText("Rendering pixel-perfect GIF on server... (Processing 60+ HD frames)");
-
-      // Robustly get the logo data (blob leads to 404 on server)
-      let finalLogoData = logoSrc;
-      if (logoSrc.startsWith('blob:')) {
-        const response = await fetch(logoSrc);
-        const blob = await response.blob();
-        finalLogoData = await new Promise((resolve) => {
-          const reader = new FileReader();
-          reader.onloadend = () => resolve(reader.result);
-          reader.readAsDataURL(blob);
-        });
-      }
+      setStatusText("Synthesizing pixel-perfect frames on server...");
 
       const response = await fetch('/api/export', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           animId: selectedAnimation.id,
-          logoData: finalLogoData,
-          logoSvgText: logoSvgText, // Still needed for path drawing
+          logoSvgText: logoSvgText || initialSvgText,
           duration: selectedAnimation.duration,
           fps: exportFps
         })
       });
 
-      if (!response.ok) throw new Error("Server rendering failed.");
+      if (!response.ok) throw new Error("Server synthesis failed.");
 
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
@@ -208,10 +175,10 @@ export default function Home() {
       link.remove();
       window.URL.revokeObjectURL(url);
 
-      setStatusText("Pixel-perfect GIF exported successfully!");
+      setStatusText("Studio-grade GIF exported successfully!");
     } catch (err) {
       console.error(err);
-      setStatusText("Failed to export GIF from server.");
+      setStatusText("Failed to synthesize GIF from server.");
     } finally {
       setIsExporting(false);
     }
@@ -263,34 +230,14 @@ export default function Home() {
       </section>
 
       <section className="panel preview-panel">
-        <div ref={previewRootRef} className="preview-root">
-          <div className="logo-stage">
-            <img
-              ref={logoRef}
-              src={logoSrc}
-              className="logo"
-              alt="Your logo preview"
-            />
-            {isPathDraw && logoSvgText && (
-              <div
-                className="drawn-layer"
-                aria-hidden="true"
-                ref={drawnLayerRef}
-                dangerouslySetInnerHTML={{ __html: logoSvgText }}
-              />
-            )}
-          </div>
-
-          {isParticleBurst && (
-            <div className="particles" aria-hidden="true">
-              <span className="particle p1" />
-              <span className="particle p2" />
-              <span className="particle p3" />
-              <span className="particle p4" />
-              <span className="particle p5" />
-              <span className="particle p6" />
-            </div>
-          )}
+        <div className="preview-root">
+          <canvas
+            ref={canvasRef}
+            width={440}
+            height={440}
+            className="logo-canvas"
+            style={{ width: '220px', height: '220px' }}
+          />
         </div>
       </section>
     </main>

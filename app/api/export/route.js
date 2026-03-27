@@ -23,13 +23,13 @@ const FFMPEG_BIN = getFFmpegPath();
 export async function POST(req) {
   let browser;
   try {
-    const { animId, logoData, logoSvgText, fps = 30 } = await req.json();
+    const { animId, logoData, logoSvgText, fps = 30, backgroundColor } = await req.json();
     const targetFps = Math.min(Number(fps) || 30, 50); // Cap at 50 FPS for GIF standard compatibility
-    const animation = ANIMATIONS.find(a => a.id === animId) ?? ANIMATIONS[0];
+    const animation = { ...(ANIMATIONS.find(a => a.id === animId) ?? ANIMATIONS[0]), backgroundColor };
     const frameCount = Math.ceil((animation.duration / 1000) * targetFps);
     const frameDelayMs = animation.duration / frameCount;
 
-    console.log(`[Export] Starting session: ${animation.name} (${frameCount} frames)`);
+    console.log(`[Export] Starting session: ${animation.name} (${frameCount} frames) | Transparency: ${!backgroundColor}`);
 
     browser = await puppeteer.launch({
       headless: 'new',
@@ -45,72 +45,80 @@ export async function POST(req) {
     // Priority: logoData (Base64 from client) > logoSvgText
     const dataUrl = logoData || `data:image/svg+xml;charset=utf-8,${encodeURIComponent(logoSvgText)}`;
 
-    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/><style>
+    const bgStyle = backgroundColor ? `background:${backgroundColor} !important;` : 'background:transparent !important;';
+
+    const html = `<!DOCTYPE html><html style="background:transparent;"><head><meta charset="utf-8"/><style>
       *{box-sizing:border-box;margin:0;padding:0}
-      body{width:420px;height:420px;overflow:hidden;background:transparent !important;display:grid;place-items:center;image-rendering:optimizeQuality;-webkit-font-smoothing:antialiased;}
-      .preview-root{width:420px;height:420px;display:grid;place-items:center;background:transparent !important;position:relative;}
-      .logo-stage{position:relative;width:110px;height:110px;display:grid;place-items:center;}
-      #logo{width:110px !important;height:110px !important;object-fit:contain;position:absolute;inset:0;z-index:2;display:block;background:transparent;}
-      .drawn-layer{position:absolute;inset:0;width:110px;height:110px;z-index:3;display:grid;place-items:center;pointer-events:none;}
-      .drawn-layer svg{width:100% !important;height:100% !important;display:block;}
-      .drawn-layer svg :is(path, rect, circle, ellipse, line, polyline, polygon){
-        fill:none !important;
-        stroke: var(--computed-color, rgba(145, 246, 255, 0.9)) !important;
-        stroke-width: var(--computed-stroke-width, var(--draw-width, 1.5px)) !important;
-        stroke-linecap:round !important;
-        stroke-linejoin:round !important;
-        stroke-dasharray: var(--path-len, 1000px) !important;
-        stroke-dashoffset: var(--path-len, 1000px);
-        vector-effect: non-scaling-stroke;
-      }
-      .particles{position:absolute;inset:0;z-index:3;pointer-events:none;}
-      .particle{
-        position:absolute;left:50%;top:50%;
-        width: var(--particle-size, 4px);
-        height: var(--particle-size, 4px);
-        background: var(--computed-color, #fff);
-        border-radius: 999px;
-        opacity: var(--particle-opacity, 0.8);
-        transform-origin:center;
-        box-shadow: 0 0 12px var(--computed-color, rgba(145, 246, 255, 0.7));
-      }
+      html,body{width:420px;height:420px;overflow:hidden;background:transparent !important;}
+      body{display:grid;place-items:center;${backgroundColor ? `background:${backgroundColor} !important;` : ''}}
+      canvas{width:420px;height:420px;display:block;background:transparent !important;${backgroundColor ? `background:${backgroundColor} !important;` : ''}}
     </style></head><body>
-      <div class="preview-root" id="preview-root">
-        <div class="logo-stage">
-          <img id="logo" src="${dataUrl}" />
-          ${isPathDraw && logoSvgText ? `<div class="drawn-layer" id="drawn-layer">${logoSvgText}</div>` : ''}
-        </div>
-        ${isParticleBurst ? `<div class="particles" id="particles">${Array(6).fill('<span class="particle"></span>').join('')}</div>` : ''}
-      </div>
+      <canvas id="canvas" width="840" height="840"></canvas>
     </body></html>`;
 
     await page.setContent(html, { waitUntil: 'networkidle0' });
 
-    // Ensure logo is loaded and decoded before we start capturing
-    await page.evaluate(async () => {
-      const img = document.getElementById('logo');
-      const wait = () => new Promise(r => {
-        if (img.complete) r();
-        else { img.onload = r; img.onerror = r; }
-      });
-      await wait();
-      await new Promise(r => requestAnimationFrame(r));
-    });
-
-    await page.evaluate((engineStr, animConfig) => {
+    // Setup Canvas Engine in Puppeteer
+    await page.evaluate(async (engineStr, logoSvgText, animConfig) => {
       window.__renderFrameFn = new Function('return ' + engineStr)();
       window.__animConfig = animConfig;
-
-      const shapes = document.querySelectorAll('#drawn-layer :is(path, rect, circle, ellipse, line, polyline, polygon)');
-      shapes.forEach(p => {
-        try {
-          p._pathLen = p.getTotalLength ? p.getTotalLength() : 1000;
-          p.style.setProperty('--path-len', `${p._pathLen}px`);
-        } catch (e) { p._pathLen = 1000; }
+      
+      const canvas = document.getElementById('canvas');
+      window.__ctx = canvas.getContext('2d');
+      
+      // Load Logo Image
+      const blob = new Blob([logoSvgText], { type: 'image/svg+xml;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const img = new Image();
+      await new Promise((resolve) => {
+        img.onload = resolve;
+        img.src = url;
       });
-    }, renderFrame.toString(), animation);
+      window.__logoImg = img;
 
-    const filter = `split[v1][v2];[v1]palettegen=reserve_transparent=1:stats_mode=full[p];[v2][p]paletteuse=dither=floyd_steinberg:alpha_threshold=128`;
+      // Extract Path Data (Fixing InvalidStateError by rendering SVG)
+      // We wrap the SVG in a hidden div to allow measurements like getTotalLength()
+      const measureContainer = document.createElement('div');
+      measureContainer.style.cssText = 'position:absolute;visibility:hidden;width:0;height:0;overflow:hidden;top:-9999px;';
+      measureContainer.innerHTML = logoSvgText;
+      document.body.appendChild(measureContainer);
+
+      const svgEl = measureContainer.querySelector('svg');
+      const paths = svgEl.querySelectorAll("path, rect, circle, ellipse, line, polyline, polygon");
+      
+      window.__svgPathData = Array.from(paths).map(node => {
+        let d = "";
+        if (node.tagName === "path") d = node.getAttribute("d");
+        else if (node.tagName === "rect") {
+          const x = parseFloat(node.getAttribute("x") || 0), 
+                y = parseFloat(node.getAttribute("y") || 0), 
+                w = parseFloat(node.getAttribute("width")), 
+                h = parseFloat(node.getAttribute("height"));
+          d = `M${x} ${y}h${w}v${h}h-${w}z`;
+        } else if (node.tagName === "circle") {
+          const cx = parseFloat(node.getAttribute("cx")), 
+                cy = parseFloat(node.getAttribute("cy")), 
+                r = parseFloat(node.getAttribute("r"));
+          d = `M${cx - r} ${cy}a${r} ${r} 0 1 0 ${r * 2} 0a${r} ${r} 0 1 0 -${r * 2} 0`;
+        }
+        
+        // Now getTotalLength() will work because it's part of the rendered document
+        const length = node.getTotalLength ? node.getTotalLength() : 1000;
+        
+        return {
+          d: d || node.getAttribute("d"),
+          length,
+          color: node.getAttribute("stroke") || node.getAttribute("fill") || "#91f6ff",
+          strokeWidth: node.getAttribute("stroke-width") || "2"
+        };
+      }).filter(p => p.d);
+
+      // Clean up measurement container
+      document.body.removeChild(measureContainer);
+
+    }, renderFrame.toString(), logoSvgText, animation);
+
+    const filter = `split[v1][v2];[v1]palettegen=reserve_transparent=1:stats_mode=full[p];[v2][p]paletteuse=alpha_threshold=128:diff_mode=rectangle:dither=sierra2_4a`;
 
     const ffmpeg = spawn(FFMPEG_BIN, [
       '-f', 'image2pipe',
@@ -128,31 +136,23 @@ export async function POST(req) {
     let errLog = '';
     ffmpeg.stderr.on('data', d => errLog += d.toString());
 
-    // ─── Render Loop ─────────────────────────────────────────────────────────
-    const shapeSelectors = 'path, rect, circle, ellipse, line, polyline, polygon';
-
+    // ─── Render Loop (v2.0 Canvas Synthesis) ───────────────────────────────────
     for (let i = 0; i < frameCount; i++) {
       if (i % 20 === 0) console.log(`[Export] Frame ${i}/${frameCount}`);
 
-      await page.evaluate((t, sel) => {
-        const elements = {
-          logo: document.getElementById('logo'),
-          paths: document.querySelectorAll(`#drawn-layer :is(${sel})`),
-          particles: document.querySelectorAll('.particle')
-        };
-        window.__renderFrameFn(t, elements, window.__animConfig);
+      const progress = i / frameCount;
+      
+      await page.evaluate((p) => {
+        window.__renderFrameFn(window.__ctx, p, window.__logoImg, window.__animConfig, window.__svgPathData);
+      }, progress);
 
-        // Force a layout pass to ensure all SVG updates are flushed
-        return document.body.offsetHeight;
-      }, i * frameDelayMs, shapeSelectors);
-
-      // We use double device scale for crisp dithering
+      // Extract frame buffer directly
       const buffer = await page.screenshot({
         type: 'png',
-        omitBackground: true
+        omitBackground: true,
+        clip: { x: 0, y: 0, width: 420, height: 420 }
       });
 
-      // Defend against EPIPE
       if (ffmpeg.stdin.writable) {
         ffmpeg.stdin.write(buffer);
       } else {
