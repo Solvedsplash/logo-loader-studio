@@ -14,10 +14,17 @@ async function getBrowser() {
   if (isVercel) {
     const chromium = (await import('@sparticuz/chromium')).default;
     const puppeteerCore = (await import('puppeteer-core')).default;
+    
+    // Disable graphics mode for better serverless compatibility
+    chromium.setGraphicsMode = false;
+    
+    // Explicitly point to a remote fallback if the bundled binary is missing
+    const remoteUrl = `https://github.com/Sparticuz/chromium/releases/download/v${await chromium.version}/chromium-v${await chromium.version}-pack.tar`;
+    
     return puppeteerCore.launch({
-      args: chromium.args,
+      args: [...chromium.args, '--no-sandbox', '--disable-setuid-sandbox'],
       defaultViewport: chromium.defaultViewport,
-      executablePath: await chromium.executablePath(),
+      executablePath: await chromium.executablePath(remoteUrl),
       headless: chromium.headless,
     });
   } else {
@@ -31,8 +38,17 @@ async function getBrowser() {
 
 function getFFmpegPath() {
   if (!ffmpegStatic) return 'ffmpeg';
-  // If it's a virtual root path, resolve it
-  if (ffmpegStatic.startsWith('\\ROOT\\')) {
+  
+  // Vercel/Serverless: Absolute path check
+  if (process.env.VERCEL) {
+    const vPath = path.join(process.cwd(), 'node_modules', 'ffmpeg-static', 'ffmpeg');
+    try {
+      if (require('fs').existsSync(vPath)) return vPath;
+    } catch {}
+  }
+
+  // Virtual root resolution
+  if (typeof ffmpegStatic === 'string' && ffmpegStatic.startsWith('\\ROOT\\')) {
     return path.join(process.cwd(), ffmpegStatic.replace('\\ROOT\\', ''));
   }
   return ffmpegStatic;
