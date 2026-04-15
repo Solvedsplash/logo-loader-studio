@@ -21,12 +21,12 @@ const FAMILY_CONFIG = [
   { family: "particle-burst", label: "Particle Burst", easing: "ease-in-out" },
   { family: "scale-pulse", label: "Scale Pulse", easing: "cubic-bezier(0.2,0.7,0.2,1)" },
   { family: "fade-in-out", label: "Fade In/Out", easing: "ease-in-out" },
-  { family: "pro-morph", label: "Pro Liquid Morph", easing: "cubic-bezier(0.4,0,0.2,1)" }
+  { family: "pro-morph", label: "Pro Shape Morph", easing: "cubic-bezier(0.4,0,0.2,1)" }
 ];
 
 export const ANIMATIONS = FAMILY_CONFIG.map((cfg, index) => {
   const id = index + 1;
-  const duration = (cfg.family === "path-draw" ? 3200 : 1200);
+  const duration = (cfg.family === "path-draw" ? 3200 : cfg.family === "pro-morph" ? 2800 : 1200);
   return {
     id,
     name: cfg.label,
