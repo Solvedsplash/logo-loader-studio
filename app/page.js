@@ -6,7 +6,6 @@ const CoreEngine = require('../lib/core-engine');
 const { generateLottieJson } = require('../lib/lottie-exporter');
 
 const DEFAULT_ANIMATION_ID = 1;
-const INITIAL_EFFECTS_SHOWN = 2;
 
 /* ── Helpers ────────────────────────────────────────────────── */
 function getDefaultLogoText() {
@@ -102,19 +101,6 @@ function getPathData(svgText) {
   } catch(err) { console.warn('Path data failed:', err); return []; }
 }
 
-/* ── Style presets ────────────────────────────────────────── */
-const STYLE_PRESETS = [
-  { id: 'notion-fade',    label: 'Notion',   icon: '◐', animId: 1  },
-  { id: 'linear-breathe', label: 'Linear',   icon: '◈', animId: 2  },
-  { id: 'vercel-float',   label: 'Vercel',   icon: '▲', animId: 3  },
-  { id: 'stripe-slide',   label: 'Stripe',   icon: '⌘', animId: 4  },
-  { id: 'github-zoom',    label: 'GitHub',   icon: '◉', animId: 5  },
-  { id: 'framer-blur',    label: 'Framer',   icon: '✦', animId: 6  },
-  { id: 'figma-tilt',     label: 'Figma',    icon: '◇', animId: 7  },
-  { id: 'slack-spin',     label: 'Slack',    icon: '⊕', animId: 8  },
-  { id: 'intercom-pop',   label: 'Intercom', icon: '●', animId: 10 },
-];
-
 /* ── Settings defaults ────────────────────────────────────── */
 const DEFAULT_SETTINGS = {
   fps: 30,
@@ -123,6 +109,7 @@ const DEFAULT_SETTINGS = {
   bgMode: 'transparent',
   bgColor: '#000000',
   size: 420,
+  speed: 1,
 };
 
 /* ─────────────────────────────────────────────────────────── */
@@ -132,7 +119,7 @@ export default function Home() {
   const [logoSvgText, setLogoSvgText] = useState('');
   const [logoImg, setLogoImg] = useState(null);
   const [svgPathData, setSvgPathData] = useState([]);
-  const [showAllEffects, setShowAllEffects] = useState(false);
+  const [showAllStyles, setShowAllStyles] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [statusText, setStatusText] = useState('Ready');
@@ -141,7 +128,6 @@ export default function Home() {
   const [logoFileName, setLogoFileName] = useState('');
 
   const canvasRef = useRef(null);
-  const effectsRef = useRef(null);
   const rafRef = useRef(null);
 
   const initialSvg = useMemo(() => getDefaultLogoText(), []);
@@ -150,12 +136,6 @@ export default function Home() {
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
-
-  /* System theme detection */
-  useEffect(() => {
-    const mq = window.matchMedia('(prefers-color-scheme: dark)');
-    setTheme(mq.matches ? 'dark' : 'light');
-  }, []);
 
   /* Load logo image */
   useEffect(() => {
@@ -168,10 +148,13 @@ export default function Home() {
     return () => URL.revokeObjectURL(url);
   }, [logoSvgText, initialSvg]);
 
-  const selectedAnimation = useMemo(() =>
-    ANIMATIONS.find(a => a.id === selectedAnimationId) ?? ANIMATIONS[0],
-    [selectedAnimationId]
-  );
+  const selectedAnimation = useMemo(() => {
+    const anim = ANIMATIONS.find(a => a.id === selectedAnimationId) ?? ANIMATIONS[0];
+    return {
+      ...anim,
+      duration: anim.duration / settings.speed
+    };
+  }, [selectedAnimationId, settings.speed]);
 
   /* Animation loop */
   useEffect(() => {
@@ -200,12 +183,10 @@ export default function Home() {
         setStatusText(`Loaded: ${file.name}`);
       };
       reader.readAsText(file);
-    } else {
-      setStatusText('Please import an SVG file.');
     }
   };
 
-  const handleEffectClick = (anim) => {
+  const handleStyleClick = (anim) => {
     setSelectedAnimationId(anim.id);
     setIsGenerating(true);
     setStatusText(`Applying ${anim.name}...`);
@@ -213,17 +194,6 @@ export default function Home() {
       setIsGenerating(false);
       setStatusText(`${anim.name} applied.`);
     }, 800);
-    // If effect is beyond visible area, show all and scroll
-    if (!showAllEffects) {
-      const idx = ANIMATIONS.findIndex(a => a.id === anim.id);
-      if (idx >= INITIAL_EFFECTS_SHOWN) {
-        setShowAllEffects(true);
-        setTimeout(() => {
-          const el = effectsRef.current?.querySelector(`[data-id="${anim.id}"]`);
-          el?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        }, 50);
-      }
-    }
   };
 
   const handleGenerate = () => {
@@ -233,10 +203,6 @@ export default function Home() {
       setIsGenerating(false);
       setStatusText(`${selectedAnimation.name} ready.`);
     }, 900);
-  };
-
-  const handleStyleCardClick = (preset) => {
-    handleEffectClick({ id: preset.animId, name: preset.label });
   };
 
   const setSetting = (key, val) => setSettings(s => ({ ...s, [key]: val }));
@@ -266,7 +232,6 @@ export default function Home() {
       return;
     }
 
-    // WebM
     try {
       setIsExporting(true);
       setStatusText('Rendering WebM frames...');
@@ -298,335 +263,109 @@ export default function Home() {
     } finally { setIsExporting(false); }
   }, [settings, logoSvgText, initialSvg, selectedAnimation, svgPathData]);
 
-  const visibleAnimations = showAllEffects ? ANIMATIONS : ANIMATIONS.slice(0, INITIAL_EFFECTS_SHOWN);
+  const visibleAnimations = showAllStyles ? ANIMATIONS : ANIMATIONS.slice(0, 2);
 
   return (
     <div className="app-shell">
-      {/* ── Top Bar ── */}
       <header className="topbar">
         <div className="topbar-brand">
           <div className="brand-icon">✦</div>
           <span className="brand-name">Logo Loader Studio</span>
         </div>
-
         <div className="topbar-actions">
-          <button
-            id="theme-toggle"
-            className="icon-btn"
-            onClick={() => setTheme(t => t === 'dark' ? 'light' : 'dark')}
-            title="Toggle theme"
-          >
+          <button className="icon-btn" onClick={() => setTheme(t => t === 'dark' ? 'light' : 'dark')} title="Toggle theme">
             {theme === 'dark' ? '☀️' : '🌙'}
           </button>
-
-          <button
-            id="surprise-btn"
-            className="icon-btn"
-            onClick={() => {
-              const id = 1 + Math.floor(Math.random() * TOTAL_ANIMATIONS);
-              setSelectedAnimationId(id);
-              setStatusText(`Surprise: ${ANIMATIONS.find(a => a.id === id)?.name}`);
-            }}
-            title="Surprise me"
-          >
-            🎲
-          </button>
-
-          <button
-            id="export-btn-top"
-            className="export-btn-top"
-            onClick={handleExport}
-            disabled={isExporting}
-          >
-            {isExporting ? (
-              <><span className="spin">⟳</span> Exporting…</>
-            ) : (
-              <>{settings.format === 'json' ? '↓ Lottie JSON' : '↓ WebM'}</>
-            )}
+          <button className="export-btn-top" onClick={handleExport} disabled={isExporting}>
+            {isExporting ? <span className="spin">⟳</span> : `Export ${settings.format.toUpperCase()}`}
           </button>
         </div>
       </header>
 
-      {/* ── Main 3-column layout ── */}
       <div className="main-content">
-
-        {/* ── LEFT PANEL ── */}
+        {/* LEFT PANEL: Import + Settings */}
         <aside className="side-panel">
-          {/* Import */}
-          <div className="section-header">
-            <span className="section-title">Logo</span>
-          </div>
-
-          <label className="import-zone" id="import-logo-zone">
-            <input type="file" accept=".svg,image/svg+xml" onChange={onLogoChange} />
+          <div className="section-header"><span className="section-title">Logo</span></div>
+          <label className="import-zone">
+            <input type="file" accept=".svg" onChange={onLogoChange} />
             <span className="import-icon">⬆</span>
-            <div className="import-label">
-              <strong>{logoFileName || 'Import SVG'}</strong>
-              {logoFileName ? 'Click to replace' : 'Drop or click to upload'}
-            </div>
+            <div className="import-label"><strong>{logoFileName || 'Import SVG'}</strong></div>
           </label>
 
           <div className="section-divider" />
-
-          {/* Effects */}
-          <div className="section-header">
-            <span className="section-title">Effects</span>
-            <span style={{ fontSize: 11, color: 'var(--text-3)' }}>{TOTAL_ANIMATIONS}</span>
-          </div>
-
-          <div className="effects-list" ref={effectsRef}>
-            {visibleAnimations.map((anim) => (
-              <button
-                key={anim.id}
-                id={`effect-${anim.id}`}
-                data-id={anim.id}
-                className={`effect-card${selectedAnimationId === anim.id ? ' active' : ''}`}
-                onClick={() => handleEffectClick(anim)}
-              >
-                <span className="effect-dot" />
-                <span className="effect-name">{anim.name}</span>
-                {selectedAnimationId === anim.id && (
-                  <span className="effect-badge">Active</span>
-                )}
-              </button>
-            ))}
-          </div>
-
-          <button
-            id="show-more-btn"
-            className="show-more-btn"
-            onClick={() => setShowAllEffects(v => !v)}
-          >
-            {showAllEffects
-              ? '↑ Show less'
-              : `↓ Show ${ANIMATIONS.length - INITIAL_EFFECTS_SHOWN} more`}
-          </button>
-
-          <button
-            id="generate-btn"
-            className="generate-btn"
-            onClick={handleGenerate}
-            disabled={isGenerating}
-          >
-            {isGenerating ? (
-              <><span className="spin">⟳</span> Generating…</>
-            ) : (
-              <>✦ Generate</>
-            )}
-          </button>
-        </aside>
-
-        {/* ── CENTER: Canvas ── */}
-        <main className="canvas-area">
-          <div className="status-bar">
-            <span className="status-dot" />
-            {statusText}
-          </div>
-
-          <div className={`canvas-wrapper${showTransparentGrid ? ' transparent-grid' : ''}`}>
-            <canvas
-              ref={canvasRef}
-              width={720}
-              height={720}
-              className="logo-canvas"
-            />
-          </div>
-
-          <div className="canvas-toolbar">
-            <button
-              className={`canvas-toolbar-btn${showTransparentGrid ? ' active' : ''}`}
-              onClick={() => setShowTransparentGrid(v => !v)}
-              title="Toggle transparency grid"
-            >
-              ⊞ Alpha
-            </button>
-            <span className="canvas-toolbar-divider" />
-            <span style={{ fontSize: 11, color: 'var(--text-3)', padding: '0 6px' }}>
-              {selectedAnimation.name}
-            </span>
-            <span className="canvas-toolbar-divider" />
-            <button
-              className="canvas-toolbar-btn"
-              onClick={handleGenerate}
-            >
-              {isGenerating ? <span className="spin">⟳</span> : '▶'} Preview
-            </button>
-          </div>
-        </main>
-
-        {/* ── RIGHT PANEL ── */}
-        <aside className="right-panel">
-          {/* Styles */}
-          <div className="section-header">
-            <span className="section-title">Styles</span>
-          </div>
-
-          <div className="style-grid">
-            {STYLE_PRESETS.map(preset => (
-              <button
-                key={preset.id}
-                id={`style-${preset.id}`}
-                className={`style-card${selectedAnimationId === preset.animId ? ' selected' : ''}`}
-                onClick={() => handleStyleCardClick(preset)}
-                title={preset.label}
-              >
-                <span className="style-card-icon">{preset.icon}</span>
-                <span className="style-card-label">{preset.label}</span>
-              </button>
-            ))}
-          </div>
-
-          <div className="section-divider" />
-
-          {/* Settings */}
-          <div className="section-header">
-            <span className="section-title">Settings</span>
-          </div>
-
+          <div className="section-header"><span className="section-title">Settings</span></div>
           <div className="settings-group">
-            {/* Format */}
             <div className="setting-row">
-              <span className="setting-label">Export Format</span>
-              <div className="segment-control">
-                <button
-                  className={`segment-btn${settings.format === 'json' ? ' active' : ''}`}
-                  onClick={() => setSetting('format', 'json')}
-                >
-                  Lottie JSON
-                </button>
-                <button
-                  className={`segment-btn${settings.format === 'webm' ? ' active' : ''}`}
-                  onClick={() => setSetting('format', 'webm')}
-                >
-                  WebM
-                </button>
-              </div>
-            </div>
-
-            {/* FPS */}
-            <div className="setting-row">
-              <span className="setting-label">Frame Rate</span>
-              <select
-                id="fps-select"
-                className="setting-select"
-                value={settings.fps}
-                onChange={e => setSetting('fps', Number(e.target.value))}
-              >
-                <option value={24}>24 FPS — Cinematic</option>
-                <option value={30}>30 FPS — Standard</option>
-                <option value={40}>40 FPS — Smooth</option>
-                <option value={50}>50 FPS — Ultra</option>
-                <option value={60}>60 FPS — Pro Studio</option>
+              <span className="setting-label">Animation Speed</span>
+              <select className="setting-select" value={settings.speed} onChange={e => setSetting('speed', parseFloat(e.target.value))}>
+                <option value={0.5}>0.5x — Slow</option>
+                <option value={1}>1.0x — Normal</option>
+                <option value={1.5}>1.5x — Fast</option>
+                <option value={2}>2.0x — Ultra Fast</option>
               </select>
             </div>
-
-            {/* Quality (WebM only) */}
-            {settings.format === 'webm' && (
-              <div className="setting-row">
-                <span className="setting-label">Quality</span>
-                <select
-                  id="quality-select"
-                  className="setting-select"
-                  value={settings.quality}
-                  onChange={e => setSetting('quality', e.target.value)}
-                >
-                  <option value="low">Low — Smaller file</option>
-                  <option value="medium">Medium — Balanced</option>
-                  <option value="high">High — Recommended</option>
-                  <option value="ultra">Ultra — Largest file</option>
-                </select>
+            <div className="setting-row">
+              <span className="setting-label">Format</span>
+              <div className="segment-control">
+                <button className={`segment-btn ${settings.format === 'json' ? 'active' : ''}`} onClick={() => setSetting('format', 'json')}>JSON</button>
+                <button className={`segment-btn ${settings.format === 'webm' ? 'active' : ''}`} onClick={() => setSetting('format', 'webm')}>WebM</button>
               </div>
-            )}
-
-            {/* Size (WebM only) */}
-            {settings.format === 'webm' && (
-              <div className="setting-row">
-                <span className="setting-label">Output Size</span>
-                <select
-                  id="size-select"
-                  className="setting-select"
-                  value={settings.size}
-                  onChange={e => setSetting('size', Number(e.target.value))}
-                >
-                  <option value={200}>200 × 200 px</option>
-                  <option value={300}>300 × 300 px</option>
-                  <option value={420}>420 × 420 px</option>
-                  <option value={600}>600 × 600 px</option>
-                  <option value={800}>800 × 800 px</option>
-                </select>
-              </div>
-            )}
-
-            {/* Background */}
+            </div>
+            <div className="setting-row">
+              <span className="setting-label">FPS</span>
+              <select className="setting-select" value={settings.fps} onChange={e => setSetting('fps', Number(e.target.value))}>
+                <option value={24}>24 FPS</option>
+                <option value={30}>30 FPS</option>
+                <option value={60}>60 FPS</option>
+              </select>
+            </div>
             <div className="setting-row">
               <span className="setting-label">Background</span>
               <div className="segment-control">
-                <button
-                  className={`segment-btn${settings.bgMode === 'transparent' ? ' active' : ''}`}
-                  onClick={() => setSetting('bgMode', 'transparent')}
-                >
-                  Transparent
-                </button>
-                <button
-                  className={`segment-btn${settings.bgMode === 'color' ? ' active' : ''}`}
-                  onClick={() => setSetting('bgMode', 'color')}
-                >
-                  Color
-                </button>
+                <button className={`segment-btn ${settings.bgMode === 'transparent' ? 'active' : ''}`} onClick={() => setSetting('bgMode', 'transparent')}>Alpha</button>
+                <button className={`segment-btn ${settings.bgMode === 'color' ? 'active' : ''}`} onClick={() => setSetting('bgMode', 'color')}>Color</button>
               </div>
               {settings.bgMode === 'color' && (
-                <div className="color-row" style={{ marginTop: 6 }}>
-                  <div className="color-preview">
-                    <input
-                      type="color"
-                      className="color-input-hidden"
-                      value={settings.bgColor}
-                      onChange={e => setSetting('bgColor', e.target.value)}
-                    />
-                    <div style={{ background: settings.bgColor, inset: 0, position: 'absolute' }} />
-                  </div>
-                  <span className="color-label-text">{settings.bgColor.toUpperCase()}</span>
-                </div>
+                <input type="color" className="setting-select" style={{padding: 0, height: 32}} value={settings.bgColor} onChange={e => setSetting('bgColor', e.target.value)} />
               )}
             </div>
+          </div>
+          <button className="generate-btn" onClick={handleGenerate} disabled={isGenerating}>
+            {isGenerating ? <span className="spin">⟳</span> : '✦ Generate'}
+          </button>
+        </aside>
 
-            {/* Alpha grid preview toggle */}
-            <div className="toggle-row">
-              <span className="toggle-label">Show transparency grid</span>
-              <div
-                className={`toggle-switch${showTransparentGrid ? ' on' : ''}`}
-                onClick={() => setShowTransparentGrid(v => !v)}
+        {/* CENTER: Canvas */}
+        <main className="canvas-area">
+          <div className="status-bar"><span className="status-dot" />{statusText}</div>
+          <div className={`canvas-wrapper ${showTransparentGrid ? 'transparent-grid' : ''}`}>
+            <canvas ref={canvasRef} width={720} height={720} className="logo-canvas" />
+          </div>
+          <div className="canvas-toolbar">
+            <button className={`canvas-toolbar-btn ${showTransparentGrid ? 'active' : ''}`} onClick={() => setShowTransparentGrid(!showTransparentGrid)}>⊞ Alpha</button>
+            <span className="canvas-toolbar-divider" />
+            <span style={{fontSize: 11, color: 'var(--text-3)'}}>{selectedAnimation.name}</span>
+          </div>
+        </main>
+
+        {/* RIGHT PANEL: Styles (Animations) */}
+        <aside className="right-panel">
+          <div className="section-header"><span className="section-title">Styles</span></div>
+          <div className="style-grid">
+            {visibleAnimations.map(anim => (
+              <button 
+                key={anim.id} 
+                className={`style-card ${selectedAnimationId === anim.id ? 'selected' : ''}`}
+                onClick={() => handleStyleClick(anim)}
               >
-                <div className="toggle-thumb" />
-              </div>
-            </div>
+                <span className="style-card-icon">✧</span>
+                <span className="style-card-label">{anim.name}</span>
+              </button>
+            ))}
           </div>
-
-          <div className="section-divider" />
-
-          {/* Export action area at bottom */}
-          <div style={{ padding: '14px', marginTop: 'auto' }}>
-            <button
-              id="export-btn-panel"
-              className="generate-btn"
-              style={{ margin: 0, width: '100%' }}
-              onClick={handleExport}
-              disabled={isExporting}
-            >
-              {isExporting ? (
-                <><span className="spin">⟳</span> Exporting…</>
-              ) : settings.format === 'json' ? (
-                '↓ Export Lottie JSON'
-              ) : (
-                '↓ Export WebM'
-              )}
-            </button>
-            <p style={{ marginTop: 8, fontSize: 10, color: 'var(--text-3)', textAlign: 'center', lineHeight: 1.5 }}>
-              {settings.fps} FPS · {settings.format.toUpperCase()}
-              {settings.format === 'webm' ? ` · ${settings.quality} quality · ${settings.size}px` : ''}
-              {settings.bgMode === 'transparent' ? ' · Alpha' : ` · ${settings.bgColor}`}
-            </p>
-          </div>
+          <button className="show-more-btn" onClick={() => setShowAllStyles(!showAllStyles)}>
+            {showAllStyles ? '↑ Show Less' : `↓ Show All (${ANIMATIONS.length})`}
+          </button>
         </aside>
       </div>
     </div>
