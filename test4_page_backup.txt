@@ -1,0 +1,367 @@
+﻿"use client";
+
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ANIMATIONS, TOTAL_ANIMATIONS } from './animations';
+const CoreEngine = require('../lib/core-engine');
+const { generateLottieJson } = require('../lib/lottie-exporter');
+
+const DEFAULT_ANIMATION_ID = 1;
+
+function getDefaultLogoText() {
+  return "<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220' viewBox='0 0 220 220'>" +
+    "<defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'>" +
+    "<stop offset='0%' stop-color='#6f89ff'/><stop offset='100%' stop-color='#91f6ff'/>" +
+    "</linearGradient></defs>" +
+    "<circle cx='110' cy='110' r='90' fill='url(#g)'/>" +
+    "<path d='M78 114l22 22 42-50' stroke='#0f1220' stroke-width='16' fill='none' stroke-linecap='round' stroke-linejoin='round'/>" +
+    "</svg>";
+}
+
+// ΓöÇΓöÇ Convert any SVG shape element to a path `d` string ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+// Handles all 7 primitive types. Used in getPathData for accurate getTotalLength.
+function shapeToPathD(node) {
+  const tag = node.tagName.toLowerCase();
+  if (tag === 'path') return node.getAttribute('d') || '';
+
+  if (tag === 'rect') {
+    const x = parseFloat(node.getAttribute('x')      || '0');
+    const y = parseFloat(node.getAttribute('y')      || '0');
+    const w = parseFloat(node.getAttribute('width')  || '0');
+    const h = parseFloat(node.getAttribute('height') || '0');
+    return `M${x},${y}H${x+w}V${y+h}H${x}Z`;
+  }
+
+  if (tag === 'circle') {
+    const cx = parseFloat(node.getAttribute('cx') || '0');
+    const cy = parseFloat(node.getAttribute('cy') || '0');
+    const r  = parseFloat(node.getAttribute('r')  || '0');
+    return `M${cx-r},${cy}A${r},${r},0,1,0,${cx+r},${cy}A${r},${r},0,1,0,${cx-r},${cy}Z`;
+  }
+
+  if (tag === 'ellipse') {
+    const cx = parseFloat(node.getAttribute('cx') || '0');
+    const cy = parseFloat(node.getAttribute('cy') || '0');
+    const rx = parseFloat(node.getAttribute('rx') || '0');
+    const ry = parseFloat(node.getAttribute('ry') || '0');
+    return `M${cx-rx},${cy}A${rx},${ry},0,1,0,${cx+rx},${cy}A${rx},${ry},0,1,0,${cx-rx},${cy}Z`;
+  }
+
+  if (tag === 'line') {
+    const x1 = parseFloat(node.getAttribute('x1') || '0');
+    const y1 = parseFloat(node.getAttribute('y1') || '0');
+    const x2 = parseFloat(node.getAttribute('x2') || '0');
+    const y2 = parseFloat(node.getAttribute('y2') || '0');
+    return `M${x1},${y1}L${x2},${y2}`;
+  }
+
+  if (tag === 'polyline' || tag === 'polygon') {
+    const raw = (node.getAttribute('points') || '').trim();
+    if (!raw) return '';
+    const pts = raw.replace(/,/g, ' ').split(/\s+/).map(Number);
+    if (pts.length < 4) return '';
+    let d = `M${pts[0]},${pts[1]}`;
+    for (let i = 2; i + 1 < pts.length; i += 2) d += `L${pts[i]},${pts[i+1]}`;
+    if (tag === 'polygon') d += 'Z';
+    return d;
+  }
+
+  return '';
+}
+
+// ΓöÇΓöÇ Normalize SVG: inject explicit width/height from viewBox if missing ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+// Without this, SVGs that use only viewBox render at 0├ù0 on the canvas.
+function normalizeSvgForPreview(svgText) {
+  try {
+    let svg = (svgText || '').trim();
+    const hasW = /<svg[^>]+\bwidth\s*=\s*["'][\d]/.test(svg);
+    const hasH = /<svg[^>]+\bheight\s*=\s*["'][\d]/.test(svg);
+    if (hasW && hasH) return svg;
+    const vb = svg.match(/viewBox\s*=\s*["']([^"']+)["']/);
+    if (vb) {
+      const parts = vb[1].trim().split(/[\s,]+/).map(Number);
+      const vw = parts[2] || 220, vh = parts[3] || 220;
+      svg = svg.replace(/(<svg)(\s|>)/, `$1 width="${vw}" height="${vh}"$2`);
+    } else {
+      svg = svg.replace(/(<svg)(\s|>)/, '$1 width="220" height="220" viewBox="0 0 220 220"$2');
+    }
+    return svg;
+  } catch { return svgText; }
+}
+
+function getPathData(svgText) {
+  try {
+    const measureContainer = document.createElement('div');
+    measureContainer.style.cssText = 'position:absolute;visibility:hidden;width:0;height:0;overflow:hidden;top:-9999px;';
+    // Normalize before inserting so getTotalLength returns correct values
+    measureContainer.innerHTML = normalizeSvgForPreview(svgText);
+    document.body.appendChild(measureContainer);
+
+    const svgEl = measureContainer.querySelector('svg');
+    if (!svgEl) {
+      document.body.removeChild(measureContainer);
+      return [];
+    }
+
+    const nodes = svgEl.querySelectorAll('path, rect, circle, ellipse, line, polyline, polygon');
+    const data = Array.from(nodes).map(node => {
+      const d = shapeToPathD(node);
+      const length = node.getTotalLength ? node.getTotalLength() : 1000;
+      const cs = window.getComputedStyle(node);
+      const stroke = (cs.stroke && cs.stroke !== 'none') ? cs.stroke : (node.getAttribute('stroke') || '');
+      const fill   = (cs.fill   && cs.fill   !== 'none') ? cs.fill   : (node.getAttribute('fill')   || '');
+      return {
+        d,
+        length,
+        color:       stroke || fill || '#91f6ff',
+        strokeWidth: cs.strokeWidth || node.getAttribute('stroke-width') || '2'
+      };
+    }).filter(p => Boolean(p.d));
+
+    document.body.removeChild(measureContainer);
+    return data;
+  } catch (err) {
+    console.warn('Path data extraction failed:', err);
+    return [];
+  }
+}
+
+export default function Home() {
+  const [selectedAnimationId, setSelectedAnimationId] = useState(DEFAULT_ANIMATION_ID);
+  const [statusText, setStatusText] = useState("Ready.");
+
+  const initialSvgText = getDefaultLogoText();
+  const [logoImg, setLogoImg] = useState(null);
+  const [logoSvgText, setLogoSvgText] = useState("");
+  const [svgPathData, setSvgPathData] = useState([]);
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportFps, setExportFps] = useState(30);
+  const [exportFormat, setExportFormat] = useState('json'); // Lottie JSON = best quality
+  const [showTransparencyGrid, setShowTransparencyGrid] = useState(false);
+  
+  const canvasRef = useRef(null);
+
+  // Load Logo Image
+  useEffect(() => {
+    const img = new Image();
+    const svgText = logoSvgText || initialSvgText;
+    const blob = new Blob([normalizeSvgForPreview(svgText)], { type: 'image/svg+xml;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    
+    img.onload = () => {
+      setLogoImg(img);
+      setSvgPathData(getPathData(svgText));
+    };
+    img.src = url;
+
+    return () => URL.revokeObjectURL(url);
+  }, [logoSvgText, initialSvgText]);
+
+  const selectedAnimation = useMemo(() => {
+    return ANIMATIONS.find((a) => a.id === selectedAnimationId) ?? ANIMATIONS[0];
+  }, [selectedAnimationId]);
+
+  // Main UI Animation Loop (Canvas Version)
+  useEffect(() => {
+    if (!canvasRef.current || !logoImg) return;
+
+    const ctx = canvasRef.current.getContext("2d");
+    let start = performance.now();
+    let raf;
+
+    const loop = (now) => {
+      const elapsed = now - start;
+      const duration = selectedAnimation.duration;
+      const progress = (elapsed % duration) / duration;
+
+      const state = CoreEngine.getFrameState(progress, selectedAnimation, svgPathData);
+      CoreEngine.renderStateToCanvas(ctx, state, logoImg);
+
+      raf = requestAnimationFrame(loop);
+    };
+
+    raf = requestAnimationFrame(loop);
+    setStatusText(`Applied ${selectedAnimation.name}.`);
+
+    return () => {
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, [selectedAnimation, logoImg, svgPathData]);
+
+  const onLogoChange = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (file.type === "image/svg+xml" || file.name.toLowerCase().endsWith(".svg")) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const text = String(reader.result || "");
+        setLogoSvgText(text);
+        setSelectedAnimationId(21); // Auto-select Pro Shape Morph
+        setStatusText(`Logo imported: ${file.name} (Applying best shape morph)`);
+      };
+      reader.readAsText(file);
+    } else {
+      setStatusText(`Error: Please import an SVG logo for the canvas engine.`);
+    }
+  };
+
+  const onSurprise = () => {
+    const id = 1 + Math.floor(Math.random() * TOTAL_ANIMATIONS);
+    setSelectedAnimationId(id);
+  };
+
+  const exportGif = async () => {
+    if (exportFormat === 'json') {
+      try {
+        setIsExporting(true);
+        setStatusText("Generating deterministic Lottie JSON...");
+        const svgText = logoSvgText || initialSvgText;
+        const b64 = btoa(unescape(encodeURIComponent(normalizeSvgForPreview(svgText))));
+        const dataUri = `data:image/svg+xml;base64,${b64}`;
+        
+        const jsonStr = generateLottieJson(selectedAnimation, dataUri, svgPathData, exportFps);
+        const blob = new Blob([jsonStr], { type: 'application/json' });
+        const url = window.URL.createObjectURL(blob);
+        
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `logo-loader-${selectedAnimation.id}.json`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.URL.revokeObjectURL(url);
+        
+        setStatusText("Lottie JSON exported successfully!");
+      } catch (err) {
+        console.error(err);
+        setStatusText("Failed to generate Lottie JSON.");
+      } finally {
+        setIsExporting(false);
+      }
+      return;
+    }
+
+    try {
+      setIsExporting(true);
+      setStatusText("Synthesizing pixel-perfect frames on server...");
+
+      const response = await fetch('/api/export', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          animId: selectedAnimation.id,
+          logoSvgText: logoSvgText || initialSvgText,
+          duration: selectedAnimation.duration,
+          fps: exportFps,
+          format: exportFormat
+        })
+      });
+
+      if (!response.ok) throw new Error("Server synthesis failed.");
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `logo-loader-${selectedAnimation.id}.${exportFormat === 'gif-solid' ? 'gif' : exportFormat}`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+
+      setStatusText(`${exportFormat.toUpperCase()} exported successfully!`);
+    } catch (err) {
+      console.error(err);
+      setStatusText("Failed to synthesize GIF from server.");
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  return (
+    <main className="app">
+      <header className="header">
+        <h1>Logo Loader Studio</h1>
+        <p>Minimal logo loading motions inspired by modern app loaders.</p>
+      </header>
+
+      <section className="panel controls">
+        <label className="control">
+          <span>Import logo</span>
+          <input type="file" accept="image/*" onChange={onLogoChange} />
+        </label>
+
+        <label className="control">
+          <span>Animation ({TOTAL_ANIMATIONS} curated presets)</span>
+          <select
+            value={selectedAnimationId}
+            onChange={(e) => setSelectedAnimationId(Number(e.target.value || "1"))}
+          >
+            {ANIMATIONS.map((animation) => (
+              <option key={animation.id} value={animation.id}>
+                {`${String(animation.id).padStart(3, "0")} - ${animation.name}`}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="control">
+          <span>Export Format</span>
+          <select value={exportFormat} onChange={(e) => setExportFormat(e.target.value)}>
+            <option value="json">Lottie JSON ΓÇö Smooth Transparency Γ£ô</option>
+            <option value="apng">APNG ΓÇö True Alpha (Raster)</option>
+            <option value="gif">GIF ΓÇö Binary Alpha (No Smooth Fade)</option>
+            <option value="gif-solid">GIF ΓÇö Dark Background</option>
+          </select>
+        </label>
+
+        <label className="control">
+          <span>Export Framerate</span>
+          <select value={exportFps} onChange={(e) => setExportFps(Number(e.target.value))}>
+            <option value={30}>30 FPS (Standard)</option>
+            <option value={40}>40 FPS (Smooth)</option>
+            <option value={50}>50 FPS (Pro Studio)</option>
+          </select>
+        </label>
+
+        <div className="row">
+          <button type="button" onClick={onSurprise}>Surprise Me</button>
+          <button className="export-btn" type="button" onClick={exportGif} disabled={isExporting}>
+            {isExporting
+              ? `Exporting ${exportFormat.toUpperCase()}...`
+              : exportFormat === 'json'
+                ? 'Export Lottie JSON'
+                : exportFormat === 'gif'
+                  ? 'Export GIF (Transparent)'
+                  : exportFormat === 'apng'
+                    ? 'Export APNG (True Alpha)'
+                    : 'Export GIF (Solid BG)'}
+          </button>
+        </div>
+        <p className="status">{statusText}</p>
+      </section>
+
+      <section className="panel preview-panel">
+        <div className={`preview-root${showTransparencyGrid ? ' show-transparency-grid' : ''}`}>
+          <canvas
+            ref={canvasRef}
+            width={440}
+            height={440}
+            className="logo-canvas"
+            style={{ width: '220px', height: '220px' }}
+          />
+          <button
+            type="button"
+            className={`transparency-toggle${showTransparencyGrid ? ' active' : ''}`}
+            onClick={() => setShowTransparencyGrid(prev => !prev)}
+            title={showTransparencyGrid ? 'Hide transparency grid' : 'Show transparency grid'}
+          >
+            <span className="grid-icon">
+              <span></span><span></span><span></span><span></span>
+            </span>
+          </button>
+        </div>
+      </section>
+    </main>
+  );
+}

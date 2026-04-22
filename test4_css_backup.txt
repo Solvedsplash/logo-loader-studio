@@ -1,0 +1,224 @@
+﻿:root {
+  --bg: #0f1220;
+  --panel: #1a1f35;
+  --text: #e9ecff;
+  --muted: #a9b3df;
+  --accent: #6f89ff;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: Inter, Segoe UI, Roboto, Arial, sans-serif;
+  background: radial-gradient(circle at 20% 10%, #1d2854, var(--bg));
+  color: var(--text);
+}
+
+.app {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 24px;
+  display: grid;
+  grid-template-columns: 330px 1fr;
+  gap: 18px;
+}
+
+.header {
+  grid-column: 1 / -1;
+}
+
+.header h1 {
+  margin: 0 0 6px;
+}
+
+.header p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.panel {
+  background: rgba(26, 31, 53, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  padding: 16px;
+  backdrop-filter: blur(8px);
+}
+
+.controls {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.control {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 0.95rem;
+}
+
+.control span {
+  color: var(--muted);
+}
+
+input[type="file"],
+select,
+button {
+  width: 100%;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: #12172c;
+  color: var(--text);
+  padding: 10px 12px;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+button {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+button:hover {
+  border-color: rgba(111, 137, 255, 0.85);
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.status {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+  min-height: 1rem;
+}
+
+.preview-panel {
+  min-height: 500px;
+  display: grid;
+  place-items: center;
+}
+
+.preview-root {
+  width: min(420px, 90%);
+  aspect-ratio: 1/1;
+  border-radius: 24px;
+  display: grid;
+  place-items: center;
+  position: relative;
+  background: radial-gradient(circle, #1a2244 0%, #121932 70%, #0d1226 100%);
+  overflow: hidden;
+}
+
+/* Transparency checkerboard grid ΓÇö like LottieFiles */
+.preview-root.show-transparency-grid {
+  background:
+    conic-gradient(#e0e0e0 0 25%, #ffffff 0 50%, #e0e0e0 50% 75%, #ffffff 0)
+    0 0 / 20px 20px;
+}
+
+.transparency-toggle {
+  position: absolute;
+  bottom: 12px;
+  right: 12px;
+  z-index: 10;
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  padding: 0;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.15);
+  background: rgba(18, 23, 44, 0.7);
+  backdrop-filter: blur(6px);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.transparency-toggle:hover {
+  background: rgba(30, 40, 70, 0.9);
+  border-color: rgba(111, 137, 255, 0.6);
+}
+
+.transparency-toggle.active {
+  background: rgba(111, 137, 255, 0.2);
+  border-color: rgba(111, 137, 255, 0.7);
+}
+
+/* Mini checkerboard icon inside toggle button */
+.grid-icon {
+  width: 16px;
+  height: 16px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 1px;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.grid-icon span {
+  display: block;
+}
+
+.grid-icon span:nth-child(1),
+.grid-icon span:nth-child(4) {
+  background: rgba(255,255,255,0.7);
+}
+
+.grid-icon span:nth-child(2),
+.grid-icon span:nth-child(3) {
+  background: rgba(255,255,255,0.25);
+}
+
+.logo-stage {
+  width: 110px;
+  height: 110px;
+  position: relative;
+  display: grid;
+  place-items: center;
+}
+
+.logo {
+  --amp-y: 10px;
+  --amp-x: 8px;
+  --fade-min: 0.28;
+  --scale-min: 0.92;
+  --scale-max: 1.08;
+  --rotate-deg: 8deg;
+  --blur-max: 1.2px;
+  width: 110px;
+  height: 110px;
+  object-fit: contain;
+  animation-duration: 1400ms;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+  transform-origin: center;
+  will-change: opacity, transform, filter;
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+}
+
+
+
+@media (max-width: 900px) {
+  .app {
+    grid-template-columns: 1fr;
+  }
+
+  .preview-panel {
+    min-height: 360px;
+  }
+}

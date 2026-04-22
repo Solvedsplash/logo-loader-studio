@@ -59,8 +59,10 @@ const FFMPEG_BIN = getFFmpegPath();
 export async function POST(req) {
   let browser;
   try {
-    const { animId, logoData, logoSvgText, fps = 30, backgroundColor } = await req.json();
-    const targetFps = Math.min(Number(fps) || 30, 50); // Cap at 50 FPS for GIF standard compatibility
+    const { animId, logoData, logoSvgText, fps = 30, backgroundColor, quality = 18, size = 420 } = await req.json();
+    const targetFps = Math.min(Number(fps) || 30, 60);
+    const targetCrf = Math.max(4, Math.min(51, Number(quality) || 18));
+    const targetSize = Math.max(100, Math.min(1200, Number(size) || 420));
     const animation = { ...(ANIMATIONS.find(a => a.id === animId) ?? ANIMATIONS[0]), backgroundColor };
     const frameCount = Math.ceil((animation.duration / 1000) * targetFps);
     const frameDelayMs = animation.duration / frameCount;
@@ -70,7 +72,7 @@ export async function POST(req) {
     browser = await getBrowser();
 
     const page = await browser.newPage();
-    await page.setViewport({ width: 420, height: 420, deviceScaleFactor: 2 });
+    await page.setViewport({ width: targetSize, height: targetSize, deviceScaleFactor: 2 });
 
     const isPathDraw = animation.family === 'path-draw';
     const isParticleBurst = animation.family === 'particle-burst';
@@ -82,11 +84,11 @@ export async function POST(req) {
 
     const html = `<!DOCTYPE html><html style="background:transparent;"><head><meta charset="utf-8"/><style>
       *{box-sizing:border-box;margin:0;padding:0}
-      html,body{width:420px;height:420px;overflow:hidden;background:transparent !important;}
+      html,body{width:${targetSize}px;height:${targetSize}px;overflow:hidden;background:transparent !important;}
       body{display:grid;place-items:center;${backgroundColor ? `background:${backgroundColor} !important;` : ''}}
-      canvas{width:420px;height:420px;display:block;background:transparent !important;${backgroundColor ? `background:${backgroundColor} !important;` : ''}}
+      canvas{width:${targetSize}px;height:${targetSize}px;display:block;background:transparent !important;${backgroundColor ? `background:${backgroundColor} !important;` : ''}}
     </style></head><body>
-      <canvas id="canvas" width="840" height="840"></canvas>
+      <canvas id="canvas" width="${targetSize * 2}" height="${targetSize * 2}"></canvas>
     </body></html>`;
 
     await page.setContent(html, { waitUntil: 'networkidle0' });
@@ -151,16 +153,20 @@ export async function POST(req) {
 
     }, renderFrame.toString(), logoSvgText, animation);
 
-    const filter = `split[v1][v2];[v1]palettegen=reserve_transparent=1:stats_mode=full[p];[v2][p]paletteuse=alpha_threshold=128:diff_mode=rectangle:dither=sierra2_4a`;
-
     const ffmpeg = spawn(FFMPEG_BIN, [
       '-f', 'image2pipe',
       '-vcodec', 'png',
       '-r', String(targetFps),
       '-i', '-',
-      '-vf', filter,
-      '-gifflags', '+transdiff',
-      '-f', 'gif',
+      '-c:v', 'libvpx-vp9',
+      '-pix_fmt', 'yuva420p',
+      '-auto-alt-ref', '0',
+      '-b:v', '0',
+      '-crf', String(targetCrf),
+      '-deadline', 'good',
+      '-cpu-used', '2',
+      '-an',
+      '-f', 'webm',
       '-'
     ]);
 
@@ -183,7 +189,7 @@ export async function POST(req) {
       const buffer = await page.screenshot({
         type: 'png',
         omitBackground: true,
-        clip: { x: 0, y: 0, width: 420, height: 420 }
+        clip: { x: 0, y: 0, width: targetSize, height: targetSize }
       });
 
       if (ffmpeg.stdin.writable) {
@@ -195,7 +201,7 @@ export async function POST(req) {
 
     ffmpeg.stdin.end();
 
-    const gifBuffer = await new Promise((resolve, reject) => {
+    const webmBuffer = await new Promise((resolve, reject) => {
       ffmpeg.on('close', code => {
         if (code === 0) resolve(Buffer.concat(chunks));
         else reject(new Error(`FFmpeg error (${code}): ${errLog}`));
@@ -203,12 +209,12 @@ export async function POST(req) {
       ffmpeg.on('error', e => reject(e));
     });
 
-    console.log(`[Export] Complete. Buffer: ${gifBuffer.length} bytes`);
+    console.log(`[Export] Complete. Buffer: ${webmBuffer.length} bytes`);
 
-    return new NextResponse(gifBuffer, {
+    return new NextResponse(webmBuffer, {
       headers: {
-        'Content-Type': 'image/gif',
-        'Content-Disposition': `attachment; filename="loader.gif"`,
+        'Content-Type': 'video/webm',
+        'Content-Disposition': `attachment; filename="loader.webm"`,
         'Cache-Control': 'no-store'
       }
     });
