@@ -302,61 +302,26 @@ export default function Home() {
     }
 
     // ── WebM export ────────────────────────────────────────────────
-    const backgroundColor = bgMode === 'transparent' ? null : bgColor;
-    const isTransparent = !backgroundColor;
+    // ── WebM export (client-side via WebCodecs) ──
+    const effectiveBg = bgMode === 'transparent' ? '#000000' : bgColor;
+    const speedSafe = Math.max(0.1, Number(settings.speed) || 1);
+    const animWithSpeed = {
+      ...selectedAnimation,
+      duration: selectedAnimation.duration / speedSafe,
+    };
 
-    if (isTransparent) {
-      // Alpha-transparent WebM: try server FFmpeg pipeline, fallback to client WebM if server fails
-      try {
-        setIsExporting(true);
-        setStatusText('Generating transparent WebM (server)...');
-        const svg = logoSvgText || initialSvg;
-        const response = await fetch('/api/export', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            animId: selectedAnimation.id,
-            logoSvgText: svg,
-            fps,
-            backgroundColor: null,
-            quality,
-            size,
-            speed: settings.speed,
-          })
-        });
-        if (!response.ok) {
-          const err = await response.json().catch(() => ({}));
-          throw new Error(err.error || 'Server export unavailable');
-        }
-        const blob = await response.blob();
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `loader-${selectedAnimation.id}.webm`;
-        document.body.appendChild(a); a.click(); a.remove();
-        URL.revokeObjectURL(url);
-        setStatusText(`WebM exported! (${(blob.size / 1024).toFixed(0)} KB)`);
-        setIsExporting(false);
-        return;
-      } catch (err) {
-        console.warn('[Export] Transparent server WebM failed, falling back to client WebM:', err.message);
-        setStatusText('Server unavailable, rendering WebM client-side...');
-      }
-    }
-
-    // Opaque WebM: fast client-side WebCodecs (no server needed)
     try {
       setIsExporting(true);
       setStatusText('Generating WebM (0%)...');
 
       const blob = await exportToWebM({
         CoreEngine,
-        animation: selectedAnimation,
+        animation: animWithSpeed,
         logoImg,
         svgPathsData: svgPathData,
         fps,
         quality,
-        backgroundColor,
+        backgroundColor: effectiveBg,
         size,
         onProgress: (p) => setStatusText(`Generating WebM (${Math.round(p * 100)}%)...`),
       });
@@ -371,7 +336,7 @@ export default function Home() {
       setStatusText(`WebM exported! (${(blob.size / 1024).toFixed(0)} KB)`);
     } catch (err) {
       console.error('[Export] WebM error:', err);
-      setStatusText(`Export failed: ${err.message}`);
+      setStatusText(`WebM export failed: ${err.message}`);
     } finally {
       setIsExporting(false);
     }
