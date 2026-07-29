@@ -5,6 +5,7 @@ import { ANIMATIONS, TOTAL_ANIMATIONS } from './animations';
 import CoreEngine from '../lib/core-engine';
 import { generateLottieJson } from '../lib/lottie-exporter';
 import { exportToWebM } from '../lib/webm-exporter';
+import { exportToGif } from '../lib/gif-exporter';
 import SplashCursor from './SplashCursor';
 
 const DEFAULT_ANIMATION_ID = 1;
@@ -258,34 +259,31 @@ export default function Home() {
       return;
     }
 
-    // ── GIF export (server-side via Puppeteer + FFmpeg palettegen) ──
+    // ── GIF export (client-side via gifenc) ──
     if (format === 'gif') {
       const matteColor = bgMode === 'transparent' ? '#ffffff' : bgColor;
       try {
         setIsExporting(true);
-        setStatusText('Generating GIF (server)...');
+        setStatusText('Generating GIF (0%)...');
 
-        const svg = logoSvgText || initialSvg;
-        const response = await fetch('/api/export-gif', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            animId: selectedAnimation.id,
-            logoSvgText: svg,
-            fps,
-            backgroundColor: matteColor,
-            quality,
-            size,
-            speed: settings.speed,
-          }),
+        const speedSafe = Math.max(0.1, Number(settings.speed) || 1);
+        const animWithSpeed = {
+          ...selectedAnimation,
+          duration: selectedAnimation.duration / speedSafe,
+        };
+
+        const blob = await exportToGif({
+          CoreEngine,
+          animation: animWithSpeed,
+          logoImg,
+          svgPathsData: svgPathData,
+          fps,
+          quality,
+          backgroundColor: matteColor,
+          size,
+          onProgress: (p) => setStatusText(`Generating GIF (${Math.round(p * 100)}%)...`),
         });
 
-        if (!response.ok) {
-          const err = await response.json();
-          throw new Error(err.error || 'Server GIF export failed');
-        }
-
-        const blob = await response.blob();
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
@@ -296,7 +294,7 @@ export default function Home() {
         setStatusText(`GIF exported! (${(blob.size / 1024).toFixed(0)} KB)`);
       } catch (err) {
         console.error('[Export] GIF error:', err);
-        setStatusText(`Export failed: ${err.message}`);
+        setStatusText(`GIF export failed: ${err.message}`);
       } finally {
         setIsExporting(false);
       }
@@ -308,8 +306,7 @@ export default function Home() {
     const isTransparent = !backgroundColor;
 
     if (isTransparent) {
-      // Alpha-transparent WebM: browser WebCodecs does NOT support VP9 alpha encoding.
-      // We delegate to the server-side FFmpeg pipeline which uses yuva420p.
+      // Alpha-transparent WebM: try server FFmpeg pipeline, fallback to client WebM if server fails
       try {
         setIsExporting(true);
         setStatusText('Generating transparent WebM (server)...');
@@ -328,8 +325,8 @@ export default function Home() {
           })
         });
         if (!response.ok) {
-          const err = await response.json();
-          throw new Error(err.error || 'Server export failed');
+          const err = await response.json().catch(() => ({}));
+          throw new Error(err.error || 'Server export unavailable');
         }
         const blob = await response.blob();
         const url = URL.createObjectURL(blob);
@@ -339,13 +336,12 @@ export default function Home() {
         document.body.appendChild(a); a.click(); a.remove();
         URL.revokeObjectURL(url);
         setStatusText(`WebM exported! (${(blob.size / 1024).toFixed(0)} KB)`);
-      } catch (err) {
-        console.error('[Export] WebM error:', err);
-        setStatusText(`Export failed: ${err.message}`);
-      } finally {
         setIsExporting(false);
+        return;
+      } catch (err) {
+        console.warn('[Export] Transparent server WebM failed, falling back to client WebM:', err.message);
+        setStatusText('Server unavailable, rendering WebM client-side...');
       }
-      return;
     }
 
     // Opaque WebM: fast client-side WebCodecs (no server needed)

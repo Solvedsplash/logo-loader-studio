@@ -15,11 +15,10 @@ async function getBrowser() {
     const chromium = (await import('@sparticuz/chromium')).default;
     const puppeteerCore = (await import('puppeteer-core')).default;
     chromium.setGraphicsMode = false;
-    const remoteUrl = `https://github.com/Sparticuz/chromium/releases/download/v${await chromium.version}/chromium-v${await chromium.version}-pack.tar`;
     return puppeteerCore.launch({
       args: [...chromium.args, '--no-sandbox', '--disable-setuid-sandbox'],
       defaultViewport: chromium.defaultViewport,
-      executablePath: await chromium.executablePath(remoteUrl),
+      executablePath: await chromium.executablePath(),
       headless: chromium.headless,
     });
   } else {
