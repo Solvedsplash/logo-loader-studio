@@ -5,7 +5,7 @@ import path from 'path';
 import fs from 'fs';
 import { ANIMATIONS } from '../../animations';
 
-export const maxDuration = 60;
+export const maxDuration = 120;
 export const dynamic = 'force-dynamic';
 
 const isVercel = !!process.env.VERCEL || process.env.NODE_ENV === 'production';
@@ -44,8 +44,6 @@ function getFFmpegPath() {
 }
 
 const FFMPEG_BIN = getFFmpegPath();
-
-// Read core-engine.js once at module load
 const CORE_ENGINE_SRC = fs.readFileSync(
   path.join(process.cwd(), 'lib', 'core-engine.js'),
   'utf8'
@@ -57,45 +55,42 @@ export async function POST(req) {
     const {
       animId,
       logoSvgText,
-      fps = 30,
-      backgroundColor,
+      fps = 20,
+      backgroundColor = '#ffffff',
       quality = 'high',
       size = 420,
-      speed = 1,          // animation speed multiplier from client
+      speed = 1,
     } = await req.json();
 
-    const targetFps  = Math.min(Number(fps) || 30, 60);
-    const targetSize = (Math.max(100, Math.min(1200, Number(size) || 420)) >> 1) << 1; // Force even
+    const targetFps  = Math.min(Number(fps) || 20, 50);
+    const targetSize = (Math.max(100, Math.min(800, Number(size) || 420)) >> 1) << 1;
+    const matteColor = backgroundColor || '#ffffff';
 
-    // Map quality strings to CRF (0 is lossless, higher is worse)
-    const crfMap = { 'low': 35, 'medium': 25, 'high': 15, 'ultra': 0 };
-    const targetCrf = crfMap[quality] ?? 15;
-
-    const baseAnim = ANIMATIONS.find(a => a.id === animId) ?? ANIMATIONS[0];
-    // Apply speed multiplier so server export matches the preview duration
     const speedSafe = Math.max(0.1, Number(speed) || 1);
+    const baseAnim  = ANIMATIONS.find(a => a.id === animId) ?? ANIMATIONS[0];
     const animation = {
       ...baseAnim,
       duration: baseAnim.duration / speedSafe,
-      backgroundColor: backgroundColor || null,
+      backgroundColor: matteColor,
     };
 
-    // Duration in ms, converted to frames
-    const frameCount = Math.ceil((animation.duration / 1000) * targetFps);
+    const frameCount = Math.max(2, Math.ceil((animation.duration / 1000) * targetFps));
+    const delayMs    = Math.round(1000 / targetFps); // ms per frame for GIF
 
-    console.log(`[Export] Starting: ${animation.name} | ${frameCount} frames | CRF: ${targetCrf} | Size: ${targetSize}`);
+    console.log(`[GIF Export] ${animation.name} | ${frameCount} frames @ ${targetFps}fps | size: ${targetSize} | bg: ${matteColor}`);
 
     browser = await getBrowser();
     const page = await browser.newPage();
 
-    const internalSize = 720;
+    const internalSize = 720; // render at 720px internally for quality, FFmpeg scales down
     await page.setViewport({ width: internalSize, height: internalSize, deviceScaleFactor: 1 });
 
+    const bgCss = matteColor;
     const html = `<!DOCTYPE html>
-<html style="background:transparent;">
+<html style="background:${bgCss};">
 <head><meta charset="utf-8"/><style>
   *{box-sizing:border-box;margin:0;padding:0}
-  html,body{width:${internalSize}px;height:${internalSize}px;overflow:hidden;background:transparent;}
+  html,body{width:${internalSize}px;height:${internalSize}px;overflow:hidden;background:${bgCss};}
   canvas{width:${internalSize}px;height:${internalSize}px;display:block;}
 </style></head>
 <body>
@@ -104,15 +99,12 @@ export async function POST(req) {
 </html>`;
 
     await page.setContent(html, { waitUntil: 'networkidle0' });
-
-    // Inject core-engine
     await page.evaluate(CORE_ENGINE_SRC);
 
-    // Setup render data
     await page.evaluate(async (svgText, anim) => {
       const blob = new Blob([svgText], { type: 'image/svg+xml;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      const img = new Image();
+      const url  = URL.createObjectURL(blob);
+      const img  = new Image();
       await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = url; });
       window.__logoImg = img;
       URL.revokeObjectURL(url);
@@ -151,100 +143,111 @@ export async function POST(req) {
       }).filter(p => Boolean(p.d));
       document.body.removeChild(container);
 
-      window.__ctx = document.getElementById('c').getContext('2d');
+      window.__ctx  = document.getElementById('c').getContext('2d');
       window.__anim = anim;
     }, logoSvgText, animation);
 
-    // ─── FFmpeg: VP9 with alpha (yuva420p) ─────────────────────────────
-    const ffmpegArgs = [
-      // Input: PNG frames piped from stdin
-      '-f',      'image2pipe',
-      '-vcodec', 'png',
-      '-r',      String(targetFps),
-      '-i',      '-',
-
-      // Output: VP9 WebM with full alpha channel (yuva420p)
-      // This is the ONLY reliable way to get transparent WebM —
-      // WebCodecs VideoEncoder does not support VP9 alpha in any browser.
-      '-c:v',       'libvpx-vp9',
-      '-pix_fmt',   'yuva420p',        // Y+U+V+Alpha — Lottie uses the same
-      '-lossless',  targetCrf === 0 ? '1' : '0',
-      '-crf',       String(targetCrf),
-      '-b:v',       '0',              // Use CRF mode (VBR with quality target)
-      '-deadline',  'good',           // 'realtime' skips frames; 'good' = balanced
-      '-cpu-used',  '2',              // 0=best quality, 5=fastest; 2 is a good middle
-      '-lag-in-frames', '0',          // Fixes VP9 premature-end bug in browsers
-      '-row-mt',    '1',
-      '-auto-alt-ref', '0',           // MUST be 0 for alpha — alt-ref breaks yuva420p
-      '-an',
-      '-vf',        `scale=${targetSize}:${targetSize}:flags=lanczos,format=rgba`,
-      '-f',         'webm',
-      '-'
-    ];
-
-    const ffmpeg = spawn(FFMPEG_BIN, ffmpegArgs);
-    const chunks = [];
-    ffmpeg.stdout.on('data', c => chunks.push(c));
-    let errLog = '';
-    ffmpeg.stderr.on('data', d => { errLog += d.toString(); });
-
-    // ─── Render Loop (deterministic, absolute progress) ─────────────────
+    // ── Pass 1: Render all frames and collect PNGs ──────────────────
+    const framePngs = [];
     for (let i = 0; i < frameCount; i++) {
-      // Absolute progress — never accumulated deltaTime
-      const progress = i / (frameCount - 1 || 1);
+      const progress = frameCount === 1 ? 0 : i / (frameCount - 1);
 
-      await page.evaluate((p) => {
-        const ctx      = window.__ctx;
-        const anim     = window.__anim;
-        const logoImg  = window.__logoImg;
-        const svgPaths = window.__svgPathData;
+      await page.evaluate((p, bg) => {
+        const ctx     = window.__ctx;
+        const anim    = window.__anim;
+        const logoImg = window.__logoImg;
+        const paths   = window.__svgPathData;
 
-        // Clear canvas before each frame
-        ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+        // Fill with matte background first
+        ctx.fillStyle = bg;
+        ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
 
-        const state = window.CoreEngine.getFrameState(p, anim, svgPaths);
-        // Suppress engine background fill — we handle alpha ourselves
-        const s = { ...state, global: { ...state.global, backgroundColor: null } };
+        const state = window.CoreEngine.getFrameState(p, anim, paths);
+        // Force the background color so renderStateToCanvas uses the matte
+        const s = { ...state, global: { ...state.global, backgroundColor: bg } };
         window.CoreEngine.renderStateToCanvas(ctx, s, logoImg);
-      }, progress);
+      }, progress, matteColor);
 
-      const buffer = await page.screenshot({
+      const png = await page.screenshot({
         type: 'png',
-        omitBackground: true,
-        clip: { x: 0, y: 0, width: internalSize, height: internalSize }
+        omitBackground: false,
+        clip: { x: 0, y: 0, width: internalSize, height: internalSize },
       });
-
-      if (ffmpeg.stdin.writable) {
-        ffmpeg.stdin.write(buffer);
-      } else {
-        throw new Error(`FFmpeg crashed: ${errLog}`);
-      }
+      framePngs.push(png);
     }
 
-    ffmpeg.stdin.end();
+    await browser.close();
+    browser = null;
 
-    const webmBuffer = await new Promise((resolve, reject) => {
-      ffmpeg.on('close', code => {
-        if (code === 0) resolve(Buffer.concat(chunks));
-        else reject(new Error(`FFmpeg error (${code}): ${errLog}`));
-      });
-      ffmpeg.on('error', e => reject(e));
-    });
+    // ── Pass 2: FFmpeg 2-pass GIF (palettegen → paletteuse) ────────
+    // We write all PNGs to a temp directory, then run FFmpeg.
+    // FFmpeg's palettegen+paletteuse with stats_mode=full gives
+    // the best possible 256-color representation of the entire animation.
+    const os   = await import('os');
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'logo-gif-'));
 
-    console.log(`[Export] Success: ${webmBuffer.length} bytes`);
-
-    return new NextResponse(webmBuffer, {
-      headers: {
-        'Content-Type': 'video/webm',
-        'Content-Disposition': `attachment; filename="loader-${animation.id}.webm"`,
-        'Cache-Control': 'no-store'
+    try {
+      // Write frame PNGs
+      for (let i = 0; i < framePngs.length; i++) {
+        fs.writeFileSync(path.join(tmpDir, `frame${String(i).padStart(5, '0')}.png`), framePngs[i]);
       }
-    });
+
+      const palettePath = path.join(tmpDir, 'palette.png');
+      const outputPath  = path.join(tmpDir, 'out.gif');
+
+      const inputPattern = path.join(tmpDir, 'frame%05d.png');
+
+      // Step A: Generate optimal palette from all frames
+      await runFFmpeg(FFMPEG_BIN, [
+        '-framerate', String(targetFps),
+        '-i', inputPattern,
+        '-vf', `scale=${targetSize}:${targetSize}:flags=lanczos,palettegen=max_colors=256:stats_mode=full`,
+        '-y', palettePath,
+      ]);
+
+      // Step B: Apply palette with best dithering (sierra2_4a is visually smooth)
+      await runFFmpeg(FFMPEG_BIN, [
+        '-framerate', String(targetFps),
+        '-i', inputPattern,
+        '-i', palettePath,
+        '-lavfi', `scale=${targetSize}:${targetSize}:flags=lanczos[s];[s][1:v]paletteuse=dither=sierra2_4a:diff_mode=rectangle`,
+        '-loop', '0',
+        '-y', outputPath,
+      ]);
+
+      const gifBuffer = fs.readFileSync(outputPath);
+      console.log(`[GIF Export] Success: ${gifBuffer.length} bytes`);
+
+      return new NextResponse(gifBuffer, {
+        headers: {
+          'Content-Type': 'image/gif',
+          'Content-Disposition': `attachment; filename="loader-${animation.id}.gif"`,
+          'Cache-Control': 'no-store',
+        },
+      });
+
+    } finally {
+      // Clean up temp files
+      try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
+    }
 
   } catch (error) {
-    console.error('[Export] Critical Error:', error);
+    console.error('[GIF Export] Error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   } finally {
     if (browser) await browser.close();
   }
+}
+
+function runFFmpeg(bin, args) {
+  return new Promise((resolve, reject) => {
+    const proc = spawn(bin, args);
+    let errLog = '';
+    proc.stderr.on('data', d => { errLog += d.toString(); });
+    proc.on('close', code => {
+      if (code === 0) resolve();
+      else reject(new Error(`FFmpeg (${args.join(' ')}) exited ${code}:\n${errLog}`));
+    });
+    proc.on('error', reject);
+  });
 }

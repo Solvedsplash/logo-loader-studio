@@ -2,8 +2,9 @@
 
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { ANIMATIONS, TOTAL_ANIMATIONS } from './animations';
-const CoreEngine = require('../lib/core-engine');
-const { generateLottieJson } = require('../lib/lottie-exporter');
+import CoreEngine from '../lib/core-engine';
+import { generateLottieJson } from '../lib/lottie-exporter';
+import { exportToWebM } from '../lib/webm-exporter';
 
 const DEFAULT_ANIMATION_ID = 1;
 
@@ -26,20 +27,20 @@ function shapeToPathD(node) {
     const y = parseFloat(node.getAttribute('y') || '0');
     const w = parseFloat(node.getAttribute('width') || '0');
     const h = parseFloat(node.getAttribute('height') || '0');
-    return `M${x},${y}H${x+w}V${y+h}H${x}Z`;
+    return `M${x},${y}H${x + w}V${y + h}H${x}Z`;
   }
   if (tag === 'circle') {
     const cx = parseFloat(node.getAttribute('cx') || '0');
     const cy = parseFloat(node.getAttribute('cy') || '0');
-    const r  = parseFloat(node.getAttribute('r')  || '0');
-    return `M${cx-r},${cy}A${r},${r},0,1,0,${cx+r},${cy}A${r},${r},0,1,0,${cx-r},${cy}Z`;
+    const r = parseFloat(node.getAttribute('r') || '0');
+    return `M${cx - r},${cy}A${r},${r},0,1,0,${cx + r},${cy}A${r},${r},0,1,0,${cx - r},${cy}Z`;
   }
   if (tag === 'ellipse') {
     const cx = parseFloat(node.getAttribute('cx') || '0');
     const cy = parseFloat(node.getAttribute('cy') || '0');
     const rx = parseFloat(node.getAttribute('rx') || '0');
     const ry = parseFloat(node.getAttribute('ry') || '0');
-    return `M${cx-rx},${cy}A${rx},${ry},0,1,0,${cx+rx},${cy}A${rx},${ry},0,1,0,${cx-rx},${cy}Z`;
+    return `M${cx - rx},${cy}A${rx},${ry},0,1,0,${cx + rx},${cy}A${rx},${ry},0,1,0,${cx - rx},${cy}Z`;
   }
   if (tag === 'line') {
     const x1 = parseFloat(node.getAttribute('x1') || '0');
@@ -54,7 +55,7 @@ function shapeToPathD(node) {
     const pts = raw.replace(/,/g, ' ').split(/\s+/).map(Number);
     if (pts.length < 4) return '';
     let d = `M${pts[0]},${pts[1]}`;
-    for (let i = 2; i + 1 < pts.length; i += 2) d += `L${pts[i]},${pts[i+1]}`;
+    for (let i = 2; i + 1 < pts.length; i += 2) d += `L${pts[i]},${pts[i + 1]}`;
     if (tag === 'polygon') d += 'Z';
     return d;
   }
@@ -93,12 +94,12 @@ function getPathData(svgText) {
       const length = node.getTotalLength ? node.getTotalLength() : 1000;
       const cs = window.getComputedStyle(node);
       const stroke = (cs.stroke && cs.stroke !== 'none') ? cs.stroke : (node.getAttribute('stroke') || '');
-      const fill   = (cs.fill   && cs.fill   !== 'none') ? cs.fill   : (node.getAttribute('fill')   || '');
+      const fill = (cs.fill && cs.fill !== 'none') ? cs.fill : (node.getAttribute('fill') || '');
       return { d, length, color: stroke || fill || '#9b8fff', strokeWidth: cs.strokeWidth || node.getAttribute('stroke-width') || '2' };
     }).filter(p => Boolean(p.d));
     document.body.removeChild(div);
     return data;
-  } catch(err) { console.warn('Path data failed:', err); return []; }
+  } catch (err) { console.warn('Path data failed:', err); return []; }
 }
 
 /* ── Settings defaults ────────────────────────────────────── */
@@ -126,6 +127,25 @@ export default function Home() {
   const [showTransparentGrid, setShowTransparentGrid] = useState(false);
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
   const [logoFileName, setLogoFileName] = useState('');
+
+  // Mobile UI state
+  const [isBottomSheetOpen, setIsBottomSheetOpen] = useState(false);
+  const [bottomSheetTab, setBottomSheetTab] = useState('styles'); // 'styles' | 'settings'
+  const [isExportDropdownOpen, setIsExportDropdownOpen] = useState(false);
+
+  // Feedback state
+  const [userVote, setUserVote] = useState(null); // 'like' | 'dislike' | null
+  const [likeCount, setLikeCount] = useState(0);
+  const [dislikeCount, setDislikeCount] = useState(0);
+
+  const handleVote = (type) => {
+    if (userVote === type) return; // already voted
+    if (userVote === 'like') setLikeCount(c => c - 1);
+    if (userVote === 'dislike') setDislikeCount(c => c - 1);
+    if (type === 'like') setLikeCount(c => c + 1);
+    if (type === 'dislike') setDislikeCount(c => c + 1);
+    setUserVote(type);
+  };
 
   const canvasRef = useRef(null);
   const rafRef = useRef(null);
@@ -186,6 +206,14 @@ export default function Home() {
     }
   };
 
+  const handleLogoRemove = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setLogoSvgText('');
+    setLogoFileName('');
+    setStatusText('Ready');
+  };
+
   const handleStyleClick = (anim) => {
     setSelectedAnimationId(anim.id);
     setIsGenerating(true);
@@ -194,23 +222,20 @@ export default function Home() {
       setIsGenerating(false);
       setStatusText(`${anim.name} applied.`);
     }, 800);
+    // Close bottom sheet on selection if in mobile
+    if (window.innerWidth <= 1024) {
+      setIsBottomSheetOpen(false);
+    }
   };
 
-  const handleGenerate = () => {
-    setIsGenerating(true);
-    setStatusText(`Generating ${selectedAnimation.name}...`);
-    setTimeout(() => {
-      setIsGenerating(false);
-      setStatusText(`${selectedAnimation.name} ready.`);
-    }, 900);
-  };
 
   const setSetting = (key, val) => setSettings(s => ({ ...s, [key]: val }));
 
-  const handleExport = useCallback(async () => {
-    const { format, fps, quality, bgMode, bgColor, size } = settings;
-    const backgroundColor = bgMode === 'transparent' ? null : bgColor;
+  const handleExport = useCallback(async (formatOverride) => {
+    const { fps, quality, bgMode, bgColor, size } = settings;
+    const format = formatOverride ?? settings.format;
 
+    // ── JSON export (unchanged) ───────────────────────────────────
     if (format === 'json') {
       try {
         setIsExporting(true);
@@ -226,42 +251,142 @@ export default function Home() {
         document.body.appendChild(a); a.click(); a.remove();
         window.URL.revokeObjectURL(url);
         setStatusText('Lottie JSON exported!');
-      } catch(err) {
-        setStatusText('Export failed.');
+      } catch {
+        setStatusText('JSON export failed.');
       } finally { setIsExporting(false); }
       return;
     }
 
+    // ── GIF export (server-side via Puppeteer + FFmpeg palettegen) ──
+    if (format === 'gif') {
+      const matteColor = bgMode === 'transparent' ? '#ffffff' : bgColor;
+      try {
+        setIsExporting(true);
+        setStatusText('Generating GIF (server)...');
+
+        const svg = logoSvgText || initialSvg;
+        const response = await fetch('/api/export-gif', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            animId: selectedAnimation.id,
+            logoSvgText: svg,
+            fps,
+            backgroundColor: matteColor,
+            quality,
+            size,
+            speed: settings.speed,
+          }),
+        });
+
+        if (!response.ok) {
+          const err = await response.json();
+          throw new Error(err.error || 'Server GIF export failed');
+        }
+
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `loader-${selectedAnimation.id}.gif`;
+        document.body.appendChild(a); a.click(); a.remove();
+        URL.revokeObjectURL(url);
+
+        setStatusText(`GIF exported! (${(blob.size / 1024).toFixed(0)} KB)`);
+      } catch (err) {
+        console.error('[Export] GIF error:', err);
+        setStatusText(`Export failed: ${err.message}`);
+      } finally {
+        setIsExporting(false);
+      }
+      return;
+    }
+
+    // ── WebM export ────────────────────────────────────────────────
+    const backgroundColor = bgMode === 'transparent' ? null : bgColor;
+    const isTransparent = !backgroundColor;
+
+    if (isTransparent) {
+      // Alpha-transparent WebM: browser WebCodecs does NOT support VP9 alpha encoding.
+      // We delegate to the server-side FFmpeg pipeline which uses yuva420p.
+      try {
+        setIsExporting(true);
+        setStatusText('Generating transparent WebM (server)...');
+        const svg = logoSvgText || initialSvg;
+        const response = await fetch('/api/export', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            animId: selectedAnimation.id,
+            logoSvgText: svg,
+            fps,
+            backgroundColor: null,
+            quality,
+            size,
+            speed: settings.speed,
+          })
+        });
+        if (!response.ok) {
+          const err = await response.json();
+          throw new Error(err.error || 'Server export failed');
+        }
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `loader-${selectedAnimation.id}.webm`;
+        document.body.appendChild(a); a.click(); a.remove();
+        URL.revokeObjectURL(url);
+        setStatusText(`WebM exported! (${(blob.size / 1024).toFixed(0)} KB)`);
+      } catch (err) {
+        console.error('[Export] WebM error:', err);
+        setStatusText(`Export failed: ${err.message}`);
+      } finally {
+        setIsExporting(false);
+      }
+      return;
+    }
+
+    // Opaque WebM: fast client-side WebCodecs (no server needed)
     try {
       setIsExporting(true);
-      setStatusText('Rendering WebM frames...');
-      const svg = logoSvgText || initialSvg;
-      const crfMap = { low: 28, medium: 22, high: 18, ultra: 12 };
-      const response = await fetch('/api/export', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          animId: selectedAnimation.id,
-          logoSvgText: svg,
-          duration: selectedAnimation.duration,
-          fps,
-          backgroundColor,
-          quality: crfMap[quality] ?? 18,
-          size,
-        })
+      setStatusText('Generating WebM (0%)...');
+
+      const blob = await exportToWebM({
+        CoreEngine,
+        animation: selectedAnimation,
+        logoImg,
+        svgPathsData: svgPathData,
+        fps,
+        quality,
+        backgroundColor,
+        size,
+        onProgress: (p) => setStatusText(`Generating WebM (${Math.round(p * 100)}%)...`),
       });
-      if (!response.ok) throw new Error('Server error');
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
+
+      const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.href = url; a.download = `loader-${selectedAnimation.id}.webm`;
+      a.href = url;
+      a.download = `loader-${selectedAnimation.id}.webm`;
       document.body.appendChild(a); a.click(); a.remove();
-      window.URL.revokeObjectURL(url);
-      setStatusText('WebM exported!');
-    } catch(err) {
-      setStatusText('WebM export failed.');
-    } finally { setIsExporting(false); }
-  }, [settings, logoSvgText, initialSvg, selectedAnimation, svgPathData]);
+      URL.revokeObjectURL(url);
+
+      setStatusText(`WebM exported! (${(blob.size / 1024).toFixed(0)} KB)`);
+    } catch (err) {
+      console.error('[Export] WebM error:', err);
+      setStatusText(`Export failed: ${err.message}`);
+    } finally {
+      setIsExporting(false);
+    }
+  }, [settings, logoImg, logoSvgText, initialSvg, selectedAnimation, svgPathData]);
+
+  const triggerExport = (format) => {
+    setSetting('format', format);
+    setIsExportDropdownOpen(false);
+    // Pass format directly to avoid stale closure capturing old settings.format
+    handleExport(format);
+  };
+
 
   const visibleAnimations = showAllStyles ? ANIMATIONS : ANIMATIONS.slice(0, 2);
 
@@ -276,9 +401,27 @@ export default function Home() {
           <button className="icon-btn" onClick={() => setTheme(t => t === 'dark' ? 'light' : 'dark')} title="Toggle theme">
             {theme === 'dark' ? '☀️' : '🌙'}
           </button>
-          <button className="export-btn-top" onClick={handleExport} disabled={isExporting}>
-            {isExporting ? <span className="spin">⟳</span> : `Export ${settings.format.toUpperCase()}`}
-          </button>
+          <div style={{ position: 'relative' }}>
+            <button
+              className="export-btn-top"
+              onClick={() => setIsExportDropdownOpen(!isExportDropdownOpen)}
+              disabled={isExporting}
+            >
+              {isExporting ? <span className="spin">⟳</span> : "Export"}
+              <span style={{ fontSize: '10px' }}>▼</span>
+            </button>
+            <div className={`export-dropdown ${isExportDropdownOpen ? 'open' : ''}`}>
+              <button className="export-option" onClick={() => triggerExport('json')}>
+                <span>📄</span> Lottie JSON
+              </button>
+              <button className="export-option" onClick={() => triggerExport('webm')}>
+                <span>🎥</span> WebM Video
+              </button>
+              <button className="export-option" onClick={() => triggerExport('gif')}>
+                <span>🎞</span> Animated GIF
+              </button>
+            </div>
+          </div>
         </div>
       </header>
 
@@ -286,11 +429,29 @@ export default function Home() {
         {/* LEFT PANEL: Import + Settings */}
         <aside className="side-panel">
           <div className="section-header"><span className="section-title">Logo</span></div>
-          <label className="import-zone">
-            <input type="file" accept=".svg" onChange={onLogoChange} />
-            <span className="import-icon">⬆</span>
-            <div className="import-label"><strong>{logoFileName || 'Import SVG'}</strong></div>
-          </label>
+          <div className={`import-zone ${logoFileName ? 'has-file' : ''}`}>
+            <input type="file" accept=".svg" onChange={onLogoChange} style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer', width: '100%', height: '100%', zIndex: 1 }} />
+            {logoFileName ? (
+              <>
+                <span className="import-icon">✓</span>
+                <div className="import-label">
+                  <strong className="import-filename">{logoFileName}</strong>
+                  <span className="import-hint">SVG loaded</span>
+                </div>
+                <button
+                  className="import-remove-btn"
+                  onClick={handleLogoRemove}
+                  title="Remove file"
+                  style={{ zIndex: 2 }}
+                >×</button>
+              </>
+            ) : (
+              <>
+                <span className="import-icon">⬆</span>
+                <div className="import-label"><strong>Import SVG</strong></div>
+              </>
+            )}
+          </div>
 
           <div className="section-divider" />
           <div className="section-header"><span className="section-title">Settings</span></div>
@@ -306,9 +467,10 @@ export default function Home() {
             </div>
             <div className="setting-row">
               <span className="setting-label">Format</span>
-              <div className="segment-control">
+              <div className="segment-control" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
                 <button className={`segment-btn ${settings.format === 'json' ? 'active' : ''}`} onClick={() => setSetting('format', 'json')}>JSON</button>
                 <button className={`segment-btn ${settings.format === 'webm' ? 'active' : ''}`} onClick={() => setSetting('format', 'webm')}>WebM</button>
+                <button className={`segment-btn ${settings.format === 'gif' ? 'active' : ''}`} onClick={() => setSetting('format', 'gif')}>GIF</button>
               </div>
             </div>
             <div className="setting-row">
@@ -326,35 +488,99 @@ export default function Home() {
                 <button className={`segment-btn ${settings.bgMode === 'color' ? 'active' : ''}`} onClick={() => setSetting('bgMode', 'color')}>Color</button>
               </div>
               {settings.bgMode === 'color' && (
-                <input type="color" className="setting-select" style={{padding: 0, height: 32}} value={settings.bgColor} onChange={e => setSetting('bgColor', e.target.value)} />
+                <input type="color" className="setting-select" style={{ padding: 0, height: 32 }} value={settings.bgColor} onChange={e => setSetting('bgColor', e.target.value)} />
+              )}
+            </div>
+            {settings.format === 'gif' && settings.bgMode === 'transparent' && (
+              <div style={{ fontSize: 11, color: 'var(--text-3)', padding: '2px 0', lineHeight: 1.4 }}>
+                GIF has no real transparency — will export on a white matte.
+              </div>
+            )}
+            {(settings.format === 'webm' || settings.format === 'gif') && (
+              <div className="setting-row">
+                <span className="setting-label">Quality</span>
+                <select className="setting-select" value={settings.quality} onChange={e => setSetting('quality', e.target.value)}>
+                  <option value="low">Low — 1 Mbps</option>
+                  <option value="medium">Medium — 3 Mbps</option>
+                  <option value="high">High — 8 Mbps</option>
+                  <option value="ultra">Ultra — 16 Mbps</option>
+                </select>
+              </div>
+            )}
+          </div>
+        </aside>
+
+        <main className="canvas-area">
+
+          {/* Desktop-only: Ready badge at top of canvas, 16px from top */}
+          <div className="status-bar desktop-status">
+            <span className="status-dot" />{statusText}
+          </div>
+
+          {/* Mobile/Tablet-only: Status + Import above canvas */}
+          <div className="canvas-top-bar">
+            <div className="status-bar mobile-status-center">
+              <span className="status-dot" />{statusText}
+            </div>
+            <div className={`import-zone mobile-canvas-import ${logoFileName ? 'has-file' : ''}`}>
+              <input type="file" accept=".svg" onChange={onLogoChange} style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer', width: '100%', height: '100%', zIndex: 1 }} />
+              {logoFileName ? (
+                <>
+                  <span className="import-icon">✓</span>
+                  <div className="import-label">
+                    <strong className="import-filename">{logoFileName}</strong>
+                    <span className="import-hint">SVG loaded</span>
+                  </div>
+                  <button
+                    className="import-remove-btn"
+                    onClick={handleLogoRemove}
+                    title="Remove file"
+                    style={{ zIndex: 2 }}
+                  >×</button>
+                </>
+              ) : (
+                <>
+                  <span className="import-icon">⬆</span>
+                  <div className="import-label"><strong>Import SVG</strong></div>
+                </>
               )}
             </div>
           </div>
-          <button className="generate-btn" onClick={handleGenerate} disabled={isGenerating}>
-            {isGenerating ? <span className="spin">⟳</span> : '✦ Generate'}
-          </button>
-        </aside>
 
-        {/* CENTER: Canvas */}
-        <main className="canvas-area">
-          <div className="status-bar"><span className="status-dot" />{statusText}</div>
           <div className={`canvas-wrapper ${showTransparentGrid ? 'transparent-grid' : ''}`}>
             <canvas ref={canvasRef} width={720} height={720} className="logo-canvas" />
           </div>
-          <div className="canvas-toolbar">
-            <button className={`canvas-toolbar-btn ${showTransparentGrid ? 'active' : ''}`} onClick={() => setShowTransparentGrid(!showTransparentGrid)}>⊞ Alpha</button>
-            <span className="canvas-toolbar-divider" />
-            <span style={{fontSize: 11, color: 'var(--text-3)'}}>{selectedAnimation.name}</span>
+          <div className="bottom-control-bar">
+            <div className="control-group-hug">
+              <button className={`canvas-toolbar-btn ${showTransparentGrid ? 'active' : ''}`} onClick={() => setShowTransparentGrid(!showTransparentGrid)}>
+                ⊞ Alpha
+              </button>
+              <div className="control-divider-v" />
+              <span className="style-name-hug">{selectedAnimation.name}</span>
+            </div>
+
+            <div className="feedback-bar-inner">
+              <span className="feedback-text-compact">Like?</span>
+              <div className="feedback-actions">
+                <button className={`feedback-btn like ${userVote === 'like' ? 'active' : ''}`} onClick={() => handleVote('like')}>
+                  👍 {likeCount.toLocaleString()}
+                </button>
+                <button className={`feedback-btn dislike ${userVote === 'dislike' ? 'active' : ''}`} onClick={() => handleVote('dislike')}>
+                  👎 {dislikeCount.toLocaleString()}
+                </button>
+              </div>
+            </div>
           </div>
         </main>
+
 
         {/* RIGHT PANEL: Styles (Animations) */}
         <aside className="right-panel">
           <div className="section-header"><span className="section-title">Styles</span></div>
           <div className="style-grid">
             {visibleAnimations.map(anim => (
-              <button 
-                key={anim.id} 
+              <button
+                key={anim.id}
                 className={`style-card ${selectedAnimationId === anim.id ? 'selected' : ''}`}
                 onClick={() => handleStyleClick(anim)}
               >
@@ -367,6 +593,97 @@ export default function Home() {
             {showAllStyles ? '↑ Show Less' : `↓ Show All (${ANIMATIONS.length})`}
           </button>
         </aside>
+      </div>
+
+      {/* Mobile Floating Actions */}
+      <div className="floating-actions">
+        <button className="fab-btn" onClick={() => { setBottomSheetTab('styles'); setIsBottomSheetOpen(true); }}>
+          <span>✨</span> Styles
+        </button>
+        <button className="fab-btn icon-only" onClick={() => { setBottomSheetTab('settings'); setIsBottomSheetOpen(true); }}>
+          <span>⚙️</span>
+        </button>
+      </div>
+
+      {/* Bottom Sheet */}
+      <div className={`bottom-sheet-overlay ${isBottomSheetOpen ? 'open' : ''}`} onClick={() => setIsBottomSheetOpen(false)} />
+      <div className={`bottom-sheet ${isBottomSheetOpen ? 'open' : ''}`}>
+        <div className="sheet-handle" />
+        <div className="sheet-content">
+          <div className="section-header">
+            <span className="section-title">{bottomSheetTab === 'styles' ? 'Choose Style' : 'Settings'}</span>
+          </div>
+
+          {bottomSheetTab === 'styles' ? (
+            <div className="style-grid">
+              {ANIMATIONS.map(anim => (
+                <button
+                  key={anim.id}
+                  className={`style-card ${selectedAnimationId === anim.id ? 'selected' : ''}`}
+                  onClick={() => handleStyleClick(anim)}
+                >
+                  <span className="style-card-icon">✧</span>
+                  <span className="style-card-label">{anim.name}</span>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="settings-group">
+
+              <div className="setting-row">
+                <span className="setting-label">Animation Speed</span>
+                <select className="setting-select" value={settings.speed} onChange={e => setSetting('speed', parseFloat(e.target.value))}>
+                  <option value={0.5}>0.5x — Slow</option>
+                  <option value={1}>1.0x — Normal</option>
+                  <option value={1.5}>1.5x — Fast</option>
+                  <option value={2}>2.0x — Ultra Fast</option>
+                </select>
+              </div>
+              <div className="setting-row">
+                <span className="setting-label">Format</span>
+                <div className="segment-control" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
+                  <button className={`segment-btn ${settings.format === 'json' ? 'active' : ''}`} onClick={() => setSetting('format', 'json')}>JSON</button>
+                  <button className={`segment-btn ${settings.format === 'webm' ? 'active' : ''}`} onClick={() => setSetting('format', 'webm')}>WebM</button>
+                  <button className={`segment-btn ${settings.format === 'gif' ? 'active' : ''}`} onClick={() => setSetting('format', 'gif')}>GIF</button>
+                </div>
+              </div>
+              <div className="setting-row">
+                <span className="setting-label">FPS</span>
+                <select className="setting-select" value={settings.fps} onChange={e => setSetting('fps', Number(e.target.value))}>
+                  <option value={24}>24 FPS</option>
+                  <option value={30}>30 FPS</option>
+                  <option value={60}>60 FPS</option>
+                </select>
+              </div>
+              <div className="setting-row">
+                <span className="setting-label">Background</span>
+                <div className="segment-control">
+                  <button className={`segment-btn ${settings.bgMode === 'transparent' ? 'active' : ''}`} onClick={() => setSetting('bgMode', 'transparent')}>Alpha</button>
+                  <button className={`segment-btn ${settings.bgMode === 'color' ? 'active' : ''}`} onClick={() => setSetting('bgMode', 'color')}>Color</button>
+                </div>
+                {settings.bgMode === 'color' && (
+                  <input type="color" className="setting-select" style={{ padding: 0, height: 32 }} value={settings.bgColor} onChange={e => setSetting('bgColor', e.target.value)} />
+                )}
+              </div>
+              {settings.format === 'gif' && settings.bgMode === 'transparent' && (
+                <div style={{ fontSize: 11, color: 'var(--text-3)', padding: '2px 0', lineHeight: 1.4 }}>
+                  GIF has no real transparency — will export on a white matte.
+                </div>
+              )}
+              {(settings.format === 'webm' || settings.format === 'gif') && (
+                <div className="setting-row">
+                  <span className="setting-label">Quality</span>
+                  <select className="setting-select" value={settings.quality} onChange={e => setSetting('quality', e.target.value)}>
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                    <option value="ultra">Ultra</option>
+                  </select>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

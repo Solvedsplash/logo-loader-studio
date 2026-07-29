@@ -18,7 +18,6 @@ function RenderPageContent() {
   
   const selectedAnimation = ANIMATIONS.find((a) => a.id === id) ?? ANIMATIONS[0];
   const isPathDraw = selectedAnimation.family === "path-draw";
-  const isParticleBurst = selectedAnimation.family === "particle-burst";
 
   // Pre-calculate path lengths for the engine
   useEffect(() => {
@@ -56,14 +55,9 @@ function RenderPageContent() {
       const paths = drawnLayerRef.current 
         ? drawnLayerRef.current.querySelectorAll("path, rect, circle, ellipse, line, polyline, polygon") 
         : null;
-      const particles = previewRootRef.current 
-        ? previewRootRef.current.querySelectorAll(".particle") 
-        : null;
-
       renderFrame(elapsed, {
         logo: logoRef.current,
-        paths,
-        particles
+        paths
       }, selectedAnimation);
 
       raf = requestAnimationFrame(loop);
@@ -74,10 +68,7 @@ function RenderPageContent() {
       const paths = drawnLayerRef.current 
         ? drawnLayerRef.current.querySelectorAll("path, rect, circle, ellipse, line, polyline, polygon") 
         : null;
-      const particles = previewRootRef.current 
-        ? previewRootRef.current.querySelectorAll(".particle") 
-        : null;
-      renderFrame(t, { logo: logoRef.current, paths, particles }, selectedAnimation);
+      renderFrame(t, { logo: logoRef.current, paths }, selectedAnimation);
     };
 
     raf = requestAnimationFrame(loop);
@@ -125,16 +116,7 @@ function RenderPageContent() {
           )}
         </div>
         
-        {isParticleBurst && (
-          <div className="particles" aria-hidden="true">
-            <span className="particle p1" />
-            <span className="particle p2" />
-            <span className="particle p3" />
-            <span className="particle p4" />
-            <span className="particle p5" />
-            <span className="particle p6" />
-          </div>
-        )}
+
       </div>
     </div>
   );
