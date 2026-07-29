@@ -32,14 +32,18 @@ async function getBrowser() {
 
 function getFFmpegPath() {
   if (!ffmpegStatic) return 'ffmpeg';
+  let p = ffmpegStatic;
   if (process.env.VERCEL) {
     const vPath = path.join(process.cwd(), 'node_modules', 'ffmpeg-static', 'ffmpeg');
-    try { if (fs.existsSync(vPath)) return vPath; } catch {}
+    try { if (fs.existsSync(vPath)) p = vPath; } catch {}
   }
-  if (typeof ffmpegStatic === 'string' && ffmpegStatic.startsWith('\\ROOT\\')) {
-    return path.join(process.cwd(), ffmpegStatic.replace('\\ROOT\\', ''));
+  if (typeof p === 'string' && p.startsWith('\\ROOT\\')) {
+    p = path.join(process.cwd(), p.replace('\\ROOT\\', ''));
   }
-  return ffmpegStatic;
+  try {
+    if (fs.existsSync(p)) fs.chmodSync(p, 0o755);
+  } catch {}
+  return p;
 }
 
 const FFMPEG_BIN = getFFmpegPath();

@@ -259,13 +259,48 @@ export default function Home() {
       return;
     }
 
-    // ── GIF export (client-side via gifenc) ──
+    // ── GIF export (High-quality 2-pass FFmpeg server, with client fallback) ──
     if (format === 'gif') {
       const matteColor = bgMode === 'transparent' ? '#ffffff' : bgColor;
-      try {
-        setIsExporting(true);
-        setStatusText('Generating GIF (0%)...');
+      setIsExporting(true);
+      const svg = logoSvgText || initialSvg;
 
+      // 1. Try high-quality server export (FFmpeg 2-pass palettegen + paletteuse)
+      try {
+        setStatusText('Generating High-Quality GIF (server)...');
+        const response = await fetch('/api/export-gif', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            animId: selectedAnimation.id,
+            logoSvgText: svg,
+            fps,
+            backgroundColor: matteColor,
+            quality,
+            size,
+            speed: settings.speed,
+          }),
+        });
+
+        if (response.ok) {
+          const blob = await response.blob();
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `loader-${selectedAnimation.id}.gif`;
+          document.body.appendChild(a); a.click(); a.remove();
+          URL.revokeObjectURL(url);
+          setStatusText(`HQ GIF exported! (${(blob.size / 1024).toFixed(0)} KB)`);
+          setIsExporting(false);
+          return;
+        }
+      } catch (e) {
+        console.warn('[GIF Export] Server render failed, switching to client export:', e);
+      }
+
+      // 2. Client-side fallback via gifenc
+      try {
+        setStatusText('Generating GIF (client)...');
         const speedSafe = Math.max(0.1, Number(settings.speed) || 1);
         const animWithSpeed = {
           ...selectedAnimation,
@@ -301,19 +336,53 @@ export default function Home() {
       return;
     }
 
-    // ── WebM export ────────────────────────────────────────────────
-    // ── WebM export (client-side via WebCodecs) ──
-    const effectiveBg = bgMode === 'transparent' ? '#000000' : bgColor;
+    // ── WebM export (High-quality VP9 server, with client fallback) ──
+    const backgroundColor = bgMode === 'transparent' ? null : bgColor;
     const speedSafe = Math.max(0.1, Number(settings.speed) || 1);
     const animWithSpeed = {
       ...selectedAnimation,
       duration: selectedAnimation.duration / speedSafe,
     };
+    setIsExporting(true);
+    const svg = logoSvgText || initialSvg;
 
+    // 1. Try high-quality server export (FFmpeg VP9 yuva420p)
     try {
-      setIsExporting(true);
-      setStatusText('Generating WebM (0%)...');
+      setStatusText('Generating High-Quality WebM (server)...');
+      const response = await fetch('/api/export', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          animId: selectedAnimation.id,
+          logoSvgText: svg,
+          fps,
+          backgroundColor,
+          quality,
+          size,
+          speed: settings.speed,
+        })
+      });
 
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `loader-${selectedAnimation.id}.webm`;
+        document.body.appendChild(a); a.click(); a.remove();
+        URL.revokeObjectURL(url);
+        setStatusText(`HQ WebM exported! (${(blob.size / 1024).toFixed(0)} KB)`);
+        setIsExporting(false);
+        return;
+      }
+    } catch (e) {
+      console.warn('[WebM Export] Server render failed, switching to client export:', e);
+    }
+
+    // 2. Client-side fallback via WebCodecs
+    try {
+      setStatusText('Generating WebM (client)...');
+      const effectiveBg = bgMode === 'transparent' ? '#000000' : bgColor;
       const blob = await exportToWebM({
         CoreEngine,
         animation: animWithSpeed,
