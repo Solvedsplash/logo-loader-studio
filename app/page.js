@@ -5,6 +5,7 @@ import { ANIMATIONS, TOTAL_ANIMATIONS } from './animations';
 import CoreEngine from '../lib/core-engine';
 import { generateLottieJson } from '../lib/lottie-exporter';
 import { exportToWebM } from '../lib/webm-exporter';
+import SplashCursor from './SplashCursor';
 
 const DEFAULT_ANIMATION_ID = 1;
 
@@ -392,6 +393,7 @@ export default function Home() {
 
   return (
     <div className="app-shell">
+      <SplashCursor RAINBOW_MODE={false} COLOR="#8b5cf6" COLOR_MULTIPLIER={0.005} DENSITY_DISSIPATION={2} VELOCITY_DISSIPATION={1.5} />
       <header className="topbar">
         <div className="topbar-brand">
           <div className="brand-icon">✦</div>
