@@ -5,7 +5,7 @@ import path from 'path';
 import fs from 'fs';
 import { ANIMATIONS } from '../../animations';
 
-export const maxDuration = 60;
+export const maxDuration = 300; // Vercel Pro honors up to 300s; Hobby clamps to 60s
 export const dynamic = 'force-dynamic';
 
 const isVercel = !!process.env.VERCEL || process.env.NODE_ENV === 'production';
@@ -91,7 +91,12 @@ export async function POST(req) {
     browser = await getBrowser();
     const page = await browser.newPage();
 
-    const internalSize = 720;
+    // Adaptive internal render size. We supersample to at least 512px so FFmpeg
+    // downscales to targetSize with quality, but never render larger than needed:
+    // rendering a fixed 720px at 60fps on Vercel's throttled CPU is what pushed
+    // the route past the function timeout before. targetSize >1080 is upscaled
+    // slightly, which is acceptable.
+    const internalSize = Math.min(1080, Math.max(targetSize, 512)) & ~1; // even
     await page.setViewport({ width: internalSize, height: internalSize, deviceScaleFactor: 1 });
 
     const html = `<!DOCTYPE html>
@@ -175,9 +180,12 @@ export async function POST(req) {
       '-crf',       String(targetCrf),
       '-b:v',       '0',              // Use CRF mode (VBR with quality target)
       '-deadline',  'good',           // 'realtime' skips frames; 'good' = balanced
-      '-cpu-used',  '2',              // 0=best quality, 5=fastest; 2 is a good middle
+      '-cpu-used',  '4',              // 0=best quality, 5=fastest; 4 keeps quality at these sizes
       '-lag-in-frames', '0',          // Fixes VP9 premature-end bug in browsers
       '-row-mt',    '1',
+      '-tile-columns', '2',           // parallel VP9 tile encoding
+      '-tile-rows', '2',
+      '-threads',   '0',              // auto thread count
       '-auto-alt-ref', '0',           // MUST be 0 for alpha — alt-ref breaks yuva420p
       '-an',
       '-vf',        `scale=${targetSize}:${targetSize}:flags=lanczos,format=rgba`,
@@ -202,12 +210,11 @@ export async function POST(req) {
         const logoImg  = window.__logoImg;
         const svgPaths = window.__svgPathData;
 
-        // Clear canvas before each frame
-        ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-
         const state = window.CoreEngine.getFrameState(p, anim, svgPaths);
-        // Suppress engine background fill — we handle alpha ourselves
-        const s = { ...state, global: { ...state.global, backgroundColor: null } };
+        // When the caller picked a matte colour, let the engine paint it (opaque
+        // video); otherwise leave the canvas transparent so FFmpeg writes a real
+        // alpha plane.
+        const s = { ...state, global: { ...state.global, backgroundColor: anim.backgroundColor || null } };
         window.CoreEngine.renderStateToCanvas(ctx, s, logoImg);
       }, progress);
 
@@ -246,7 +253,12 @@ export async function POST(req) {
 
   } catch (error) {
     console.error('[Export] Critical Error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    // X-Export-Failed lets the client distinguish a real server failure (and log
+    // it) from an ordinary non-OK response, instead of silently degrading quality.
+    return NextResponse.json({ error: error.message }, {
+      status: 500,
+      headers: { 'X-Export-Failed': '1' },
+    });
   } finally {
     if (browser) await browser.close();
   }

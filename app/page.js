@@ -5,6 +5,7 @@ import { ANIMATIONS, TOTAL_ANIMATIONS } from './animations';
 import CoreEngine from '../lib/core-engine';
 import { generateLottieJson } from '../lib/lottie-exporter';
 import { exportToWebM } from '../lib/webm-exporter';
+import { exportToFfmpegWebM } from '../lib/ffmpeg-webm-exporter';
 import { exportToGif } from '../lib/gif-exporter';
 import SplashCursor from './SplashCursor';
 
@@ -375,25 +376,51 @@ export default function Home() {
         setIsExporting(false);
         return;
       }
+
+      // Server responded with an error (Vercel timeout / 500 / ...) — surface it
+      // instead of silently degrading to a lower-quality, opaque export.
+      let errDetail = '';
+      try {
+        const body = await response.json();
+        errDetail = body?.error || '';
+      } catch {}
+      console.warn('[WebM Export] Server rejected request:', response.status, errDetail);
     } catch (e) {
       console.warn('[WebM Export] Server render failed, switching to client export:', e);
     }
 
-    // 2. Client-side fallback via WebCodecs
+    // 2. Client-side fallback.
+    //    - Transparent mode MUST stay transparent: use ffmpeg.wasm (VP9 alpha),
+    //      because WebCodecs cannot encode an alpha plane.
+    //    - Color mode: opaque is correct there, so WebCodecs is fine and faster.
     try {
-      setStatusText('Generating WebM (client)...');
-      const effectiveBg = bgMode === 'transparent' ? '#000000' : bgColor;
-      const blob = await exportToWebM({
-        CoreEngine,
-        animation: animWithSpeed,
-        logoImg,
-        svgPathsData: svgPathData,
-        fps,
-        quality,
-        backgroundColor: effectiveBg,
-        size,
-        onProgress: (p) => setStatusText(`Generating WebM (${Math.round(p * 100)}%)...`),
-      });
+      let blob;
+      if (bgMode === 'transparent') {
+        setStatusText('Generating transparent WebM (in-browser)...');
+        blob = await exportToFfmpegWebM({
+          CoreEngine,
+          animation: animWithSpeed,
+          logoImg,
+          svgPathsData: svgPathData,
+          fps,
+          quality,
+          size,
+          onProgress: (p) => setStatusText(`Generating transparent WebM (${Math.round(p * 100)}%)...`),
+        });
+      } else {
+        setStatusText('Generating WebM (client)...');
+        blob = await exportToWebM({
+          CoreEngine,
+          animation: animWithSpeed,
+          logoImg,
+          svgPathsData: svgPathData,
+          fps,
+          quality,
+          backgroundColor: bgColor,
+          size,
+          onProgress: (p) => setStatusText(`Generating WebM (${Math.round(p * 100)}%)...`),
+        });
+      }
 
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -402,7 +429,11 @@ export default function Home() {
       document.body.appendChild(a); a.click(); a.remove();
       URL.revokeObjectURL(url);
 
-      setStatusText(`WebM exported! (${(blob.size / 1024).toFixed(0)} KB)`);
+      setStatusText(
+        bgMode === 'transparent'
+          ? `Transparent WebM exported! (${(blob.size / 1024).toFixed(0)} KB)`
+          : `WebM exported! (${(blob.size / 1024).toFixed(0)} KB)`
+      );
     } catch (err) {
       console.error('[Export] WebM error:', err);
       setStatusText(`WebM export failed: ${err.message}`);
