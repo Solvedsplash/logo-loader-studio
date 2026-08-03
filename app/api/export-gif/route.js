@@ -59,7 +59,7 @@ export async function POST(req) {
       animId,
       logoSvgText,
       fps = 20,
-      backgroundColor = '#ffffff',
+      backgroundColor = '#000000',
       quality = 'high',
       size = 420,
       speed = 1,
@@ -67,7 +67,7 @@ export async function POST(req) {
 
     const targetFps  = Math.min(Number(fps) || 20, 50);
     const targetSize = (Math.max(100, Math.min(800, Number(size) || 420)) >> 1) << 1;
-    const matteColor = backgroundColor || '#ffffff';
+    const matteColor = backgroundColor || '#000000';
 
     const speedSafe = Math.max(0.1, Number(speed) || 1);
     const baseAnim  = ANIMATIONS.find(a => a.id === animId) ?? ANIMATIONS[0];

@@ -261,7 +261,7 @@ export default function Home() {
 
     // ── GIF export (High-quality 2-pass FFmpeg server, with client fallback) ──
     if (format === 'gif') {
-      const matteColor = bgMode === 'transparent' ? '#ffffff' : bgColor;
+      const matteColor = bgColor || '#000000';
       setIsExporting(true);
       const svg = logoSvgText || initialSvg;
 
