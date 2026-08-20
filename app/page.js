@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
-import { ANIMATIONS, TOTAL_ANIMATIONS } from './animations';
+import { ANIMATIONS } from './animations';
 import CoreEngine from '../lib/core-engine';
 import { generateLottieJson } from '../lib/lottie-exporter';
 import { exportToWebM } from '../lib/webm-exporter';
@@ -198,7 +198,10 @@ export default function Home() {
   const onLogoChange = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.type === 'image/svg+xml' || file.name.toLowerCase().endsWith('.svg')) {
+    const isSvg = file.type === 'image/svg+xml' || file.name.toLowerCase().endsWith('.svg');
+    const isRaster = /^image\/(png|jpe?g|webp|gif)$/i.test(file.type);
+
+    if (isSvg) {
       const reader = new FileReader();
       reader.onload = () => {
         setLogoSvgText(String(reader.result || ''));
@@ -206,6 +209,14 @@ export default function Home() {
         setStatusText(`Loaded: ${file.name}`);
       };
       reader.readAsText(file);
+    } else if (isRaster) {
+      setLogoSvgText('');
+      setLogoFileName(file.name);
+      setStatusText(`Loaded: ${file.name}`);
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => { setLogoImg(img); setSvgPathData([]); };
+      img.src = url;
     }
   };
 
@@ -214,6 +225,8 @@ export default function Home() {
     e.stopPropagation();
     setLogoSvgText('');
     setLogoFileName('');
+    setLogoImg(null);
+    setSvgPathData([]);
     setStatusText('Ready');
   };
 
@@ -383,7 +396,7 @@ export default function Home() {
       try {
         const body = await response.json();
         errDetail = body?.error || '';
-      } catch {}
+      } catch { }
       console.warn('[WebM Export] Server rejected request:', response.status, errDetail);
     } catch (e) {
       console.warn('[WebM Export] Server render failed, switching to client export:', e);
@@ -457,9 +470,12 @@ export default function Home() {
       <SplashCursor RAINBOW_MODE={false} COLOR="#8b5cf6" COLOR_MULTIPLIER={0.005} DENSITY_DISSIPATION={2} VELOCITY_DISSIPATION={1.5} />
       <header className="topbar">
         <div className="topbar-brand">
-          <div className="brand-icon">✦</div>
-          <span className="brand-name">Logo Loader Studio</span>
+          <div className="brand-icon">
+            <img src="/emblura.svg" alt="Logo" className="brand-icon-img" />
+          </div>
+          <span className="brand-name">Emblura</span>
         </div>
+
         <div className="topbar-actions">
           <button className="icon-btn" onClick={() => setTheme(t => t === 'dark' ? 'light' : 'dark')} title="Toggle theme">
             {theme === 'dark' ? '☀️' : '🌙'}
@@ -493,13 +509,13 @@ export default function Home() {
         <aside className="side-panel">
           <div className="section-header"><span className="section-title">Logo</span></div>
           <div className={`import-zone ${logoFileName ? 'has-file' : ''}`}>
-            <input type="file" accept=".svg" onChange={onLogoChange} style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer', width: '100%', height: '100%', zIndex: 1 }} />
+            <input type="file" accept=".svg,.png,.jpg,.jpeg,.webp" onChange={onLogoChange} style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer', width: '100%', height: '100%', zIndex: 1 }} />
             {logoFileName ? (
               <>
                 <span className="import-icon">✓</span>
                 <div className="import-label">
                   <strong className="import-filename">{logoFileName}</strong>
-                  <span className="import-hint">SVG loaded</span>
+                  <span className="import-hint">Logo loaded</span>
                 </div>
                 <button
                   className="import-remove-btn"
@@ -511,7 +527,7 @@ export default function Home() {
             ) : (
               <>
                 <span className="import-icon">⬆</span>
-                <div className="import-label"><strong>Import SVG</strong></div>
+                <div className="import-label"><strong>Import SVG / PNG</strong></div>
               </>
             )}
           </div>
@@ -586,7 +602,7 @@ export default function Home() {
               <span className="status-dot" />{statusText}
             </div>
             <div className={`import-zone mobile-canvas-import ${logoFileName ? 'has-file' : ''}`}>
-              <input type="file" accept=".svg" onChange={onLogoChange} style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer', width: '100%', height: '100%', zIndex: 1 }} />
+              <input type="file" accept=".svg,.png,.jpg,.jpeg,.webp" onChange={onLogoChange} style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer', width: '100%', height: '100%', zIndex: 1 }} />
               {logoFileName ? (
                 <>
                   <span className="import-icon">✓</span>
@@ -637,11 +653,11 @@ export default function Home() {
         </main>
 
 
-        {/* RIGHT PANEL: Styles (Animations) */}
+        {/* RIGHT PANEL */}
         <aside className="right-panel">
           <div className="section-header"><span className="section-title">Styles</span></div>
           <div className="style-grid">
-            {visibleAnimations.map(anim => (
+            {(showAllStyles ? ANIMATIONS : ANIMATIONS.slice(0, 6)).map(anim => (
               <button
                 key={anim.id}
                 className={`style-card ${selectedAnimationId === anim.id ? 'selected' : ''}`}
