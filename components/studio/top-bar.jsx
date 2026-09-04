@@ -21,7 +21,7 @@ export function TopBar({ onToggleLeft, onToggleRight, leftOpen, rightOpen, child
         </span>
         <div className="leading-tight">
           <h1 className="text-sm font-semibold tracking-tight text-foreground">
-            Logo Loader Studio
+            Motion Pop
           </h1>
           <p className="hidden text-2xs text-muted-foreground sm:block">
             Animated loaders from your own logo
