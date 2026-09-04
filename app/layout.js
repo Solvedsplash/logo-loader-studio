@@ -1,23 +1,47 @@
+import { Cabin, Geist_Mono } from "next/font/google";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { ThemeScript } from "@/components/theme-provider";
 import "./globals.css";
 
+const cabin = Cabin({
+  variable: "--font-cabin",
+  subsets: ["latin"],
+  display: "swap",
+  weight: ["400", "500", "600", "700"],
+});
+
+const geistMono = Geist_Mono({
+  variable: "--font-geist-mono",
+  subsets: ["latin"],
+  display: "swap",
+});
+
 export const metadata = {
-  title: "Logo Loader Studio — Premium Animation Export",
-  description: "Create beautiful logo loading animations and export as Lottie JSON or transparent WebM video.",
-  viewport: "width=device-width, initial-scale=1",
+  title: "Logo Loader Studio",
+  description:
+    "Design logo loading animations from a library of parametric presets, then export them as transparent WebM, GIF or Lottie.",
+};
+
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f5f5f7" },
+    { media: "(prefers-color-scheme: dark)", color: "#1c1c1e" },
+  ],
 };
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en" data-theme="dark">
+    <html lang="en" suppressHydrationWarning>
       <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
-          rel="stylesheet"
-        />
+        {/* Applies the stored theme before first paint, so a light-theme user
+            never sees a dark flash (and vice versa). */}
+        <ThemeScript />
       </head>
-      <body>{children}</body>
+      <body className={`${cabin.variable} ${geistMono.variable}`}>
+        <TooltipProvider delayDuration={300}>{children}</TooltipProvider>
+      </body>
     </html>
   );
 }
