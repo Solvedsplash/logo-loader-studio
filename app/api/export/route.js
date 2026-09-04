@@ -3,100 +3,75 @@ import { spawn } from 'child_process';
 import { NextResponse } from 'next/server';
 import path from 'path';
 import fs from 'fs';
-import { ANIMATIONS } from '../../animations';
+import { getBrowser, getFFmpegPath } from '@/lib/server/browser';
 
 export const maxDuration = 300; // Vercel Pro honors up to 300s; Hobby clamps to 60s
 export const dynamic = 'force-dynamic';
 
-const isVercel = !!process.env.VERCEL || process.env.NODE_ENV === 'production';
+const FFMPEG_BIN = getFFmpegPath(ffmpegStatic);
 
-async function getBrowser() {
-  if (isVercel) {
-    const chromium = (await import('@sparticuz/chromium')).default;
-    const puppeteerCore = (await import('puppeteer-core')).default;
-    chromium.setGraphicsMode = false;
-    return puppeteerCore.launch({
-      args: [...chromium.args, '--no-sandbox', '--disable-setuid-sandbox'],
-      defaultViewport: chromium.defaultViewport,
-      executablePath: await chromium.executablePath(),
-      headless: chromium.headless,
-    });
-  } else {
-    const puppeteer = (await import('puppeteer')).default;
-    return puppeteer.launch({
-      headless: 'new',
-      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu'],
-    });
-  }
+// Both engine files are read once at module load and injected verbatim into the
+// Puppeteer page, so the server renders with byte-identical code to the preview.
+const CORE_ENGINE_SRC = fs.readFileSync(path.join(/*turbopackIgnore: true*/ process.cwd(), 'lib', 'core-engine.js'), 'utf8');
+const SVG_PATHS_SRC = fs.readFileSync(path.join(/*turbopackIgnore: true*/ process.cwd(), 'lib', 'svg-paths.js'), 'utf8');
+
+/** Writes to a stream, waiting for 'drain' when the buffer is full. */
+function writeBackpressured(stream, buffer) {
+  return new Promise((resolve, reject) => {
+    if (stream.write(buffer)) return resolve();
+    const onDrain = () => { stream.off('error', onError); resolve(); };
+    const onError = (e) => { stream.off('drain', onDrain); reject(e); };
+    stream.once('drain', onDrain);
+    stream.once('error', onError);
+  });
 }
-
-function getFFmpegPath() {
-  if (!ffmpegStatic) return 'ffmpeg';
-  let p = ffmpegStatic;
-  if (process.env.VERCEL) {
-    const vPath = path.join(process.cwd(), 'node_modules', 'ffmpeg-static', 'ffmpeg');
-    try { if (fs.existsSync(vPath)) p = vPath; } catch {}
-  }
-  if (typeof p === 'string' && p.startsWith('\\ROOT\\')) {
-    p = path.join(process.cwd(), p.replace('\\ROOT\\', ''));
-  }
-  try {
-    if (fs.existsSync(p)) fs.chmodSync(p, 0o755);
-  } catch {}
-  return p;
-}
-
-const FFMPEG_BIN = getFFmpegPath();
-
-// Read core-engine.js once at module load
-const CORE_ENGINE_SRC = fs.readFileSync(
-  path.join(process.cwd(), 'lib', 'core-engine.js'),
-  'utf8'
-);
 
 export async function POST(req) {
   let browser;
+  let ffmpeg;
   try {
     const {
-      animId,
+      animation: clientAnimation,
       logoSvgText,
       fps = 30,
-      backgroundColor,
       quality = 'high',
       size = 420,
-      speed = 1,          // animation speed multiplier from client
     } = await req.json();
 
-    const targetFps  = Math.min(Number(fps) || 30, 60);
-    const targetSize = (Math.max(100, Math.min(1200, Number(size) || 420)) >> 1) << 1; // Force even
+    if (!clientAnimation || !clientAnimation.family) {
+      return NextResponse.json({ error: 'Missing animation definition' }, {
+        status: 400,
+        headers: { 'X-Export-Failed': '1' },
+      });
+    }
+
+    const targetFps = Math.min(Math.max(1, Number(fps) || 30), 60);
+    const targetSize = (Math.max(100, Math.min(1200, Number(size) || 420)) >> 1) << 1; // even
 
     // Map quality strings to CRF (0 is lossless, higher is worse)
-    const crfMap = { 'low': 35, 'medium': 25, 'high': 15, 'ultra': 0 };
+    const crfMap = { low: 35, medium: 25, high: 15, ultra: 0 };
     const targetCrf = crfMap[quality] ?? 15;
 
-    const baseAnim = ANIMATIONS.find(a => a.id === animId) ?? ANIMATIONS[0];
-    // Apply speed multiplier so server export matches the preview duration
-    const speedSafe = Math.max(0.1, Number(speed) || 1);
+    // The client sends the fully resolved animation — speed, easing, direction and
+    // every parameter are already baked in — so there is no preset lookup here and
+    // therefore no way for the server to disagree with what the user previewed.
     const animation = {
-      ...baseAnim,
-      duration: baseAnim.duration / speedSafe,
-      backgroundColor: backgroundColor || null,
+      ...clientAnimation,
+      duration: Math.max(100, Number(clientAnimation.duration) || 3000),
+      backgroundColor: clientAnimation.backgroundColor || null,
     };
 
-    // Duration in ms, converted to frames
-    const frameCount = Math.ceil((animation.duration / 1000) * targetFps);
+    const frameCount = Math.max(2, Math.ceil((animation.duration / 1000) * targetFps));
 
-    console.log(`[Export] Starting: ${animation.name} | ${frameCount} frames | CRF: ${targetCrf} | Size: ${targetSize}`);
+    console.log(`[Export] ${animation.name} | ${frameCount} frames | CRF ${targetCrf} | ${targetSize}px | alpha=${!animation.backgroundColor}`);
 
     browser = await getBrowser();
     const page = await browser.newPage();
 
-    // Adaptive internal render size. We supersample to at least 512px so FFmpeg
-    // downscales to targetSize with quality, but never render larger than needed:
-    // rendering a fixed 720px at 60fps on Vercel's throttled CPU is what pushed
-    // the route past the function timeout before. targetSize >1080 is upscaled
-    // slightly, which is acceptable.
-    const internalSize = Math.min(1080, Math.max(targetSize, 512)) & ~1; // even
+    // Supersample to at least 512px so FFmpeg downscales cleanly, but never render
+    // larger than needed: a fixed 720px at 60fps on Vercel's throttled CPU is what
+    // used to push this route past the function timeout.
+    const internalSize = Math.min(1080, Math.max(targetSize, 512)) & ~1;
     await page.setViewport({ width: internalSize, height: internalSize, deviceScaleFactor: 1 });
 
     const html = `<!DOCTYPE html>
@@ -106,160 +81,130 @@ export async function POST(req) {
   html,body{width:${internalSize}px;height:${internalSize}px;overflow:hidden;background:transparent;}
   canvas{width:${internalSize}px;height:${internalSize}px;display:block;}
 </style></head>
-<body>
-  <canvas id="c" width="${internalSize}" height="${internalSize}"></canvas>
-</body>
+<body><canvas id="c" width="${internalSize}" height="${internalSize}"></canvas></body>
 </html>`;
 
     await page.setContent(html, { waitUntil: 'networkidle0' });
 
-    // Inject core-engine
+    await page.evaluate(SVG_PATHS_SRC);
     await page.evaluate(CORE_ENGINE_SRC);
 
-    // Setup render data
     await page.evaluate(async (svgText, anim) => {
-      const blob = new Blob([svgText], { type: 'image/svg+xml;charset=utf-8' });
+      const normalized = window.SvgPaths.normalizeSvg(svgText);
+      const blob = new Blob([normalized], { type: 'image/svg+xml;charset=utf-8' });
       const url = URL.createObjectURL(blob);
       const img = new Image();
       await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = url; });
       window.__logoImg = img;
       URL.revokeObjectURL(url);
 
-      const container = document.createElement('div');
-      container.style.cssText = 'position:absolute;visibility:hidden;width:0;height:0;overflow:hidden;top:-9999px;';
-      container.innerHTML = svgText;
-      document.body.appendChild(container);
-      const svgEl = container.querySelector('svg');
-      const nodes = svgEl ? svgEl.querySelectorAll('path,rect,circle,ellipse,line,polyline,polygon') : [];
-
-      function shapeToD(node) {
-        const tag = node.tagName.toLowerCase();
-        if (tag === 'path') return node.getAttribute('d') || '';
-        if (tag === 'rect') {
-          const x = +node.getAttribute('x')||0, y = +node.getAttribute('y')||0,
-                w = +node.getAttribute('width')||0, h = +node.getAttribute('height')||0;
-          return `M${x},${y}H${x+w}V${y+h}H${x}Z`;
-        }
-        if (tag === 'circle') {
-          const cx = +node.getAttribute('cx')||0, cy = +node.getAttribute('cy')||0, r = +node.getAttribute('r')||0;
-          return `M${cx-r},${cy}A${r},${r},0,1,0,${cx+r},${cy}A${r},${r},0,1,0,${cx-r},${cy}Z`;
-        }
-        return '';
-      }
-
-      window.__svgPathData = Array.from(nodes).map(node => {
-        const d = shapeToD(node);
-        const length = node.getTotalLength ? node.getTotalLength() : 1000;
-        const cs = window.getComputedStyle(node);
-        return {
-          d, length,
-          color: (cs.stroke && cs.stroke !== 'none') ? cs.stroke : (node.getAttribute('stroke') || node.getAttribute('fill') || '#9b8fff'),
-          strokeWidth: cs.strokeWidth || node.getAttribute('stroke-width') || '2',
-        };
-      }).filter(p => Boolean(p.d));
-      document.body.removeChild(container);
-
+      window.__svgPathData = window.SvgPaths.extractPaths(svgText);
       window.__ctx = document.getElementById('c').getContext('2d');
       window.__anim = anim;
     }, logoSvgText, animation);
 
-    // ─── FFmpeg: VP9 with alpha (yuva420p) ─────────────────────────────
+    // ─── FFmpeg: VP9 with alpha (yuva420p) ────────────────────────────
     const ffmpegArgs = [
-      // Input: PNG frames piped from stdin
-      '-f',      'image2pipe',
+      '-f', 'image2pipe',
       '-vcodec', 'png',
-      '-r',      String(targetFps),
-      '-i',      '-',
+      '-r', String(targetFps),
+      '-i', '-',
 
-      // Output: VP9 WebM with full alpha channel (yuva420p)
-      // This is the ONLY reliable way to get transparent WebM —
-      // WebCodecs VideoEncoder does not support VP9 alpha in any browser.
-      '-c:v',       'libvpx-vp9',
-      '-pix_fmt',   'yuva420p',        // Y+U+V+Alpha — Lottie uses the same
-      '-lossless',  targetCrf === 0 ? '1' : '0',
-      '-crf',       String(targetCrf),
-      '-b:v',       '0',              // Use CRF mode (VBR with quality target)
-      '-deadline',  'good',           // 'realtime' skips frames; 'good' = balanced
-      '-cpu-used',  '4',              // 0=best quality, 5=fastest; 4 keeps quality at these sizes
-      '-lag-in-frames', '0',          // Fixes VP9 premature-end bug in browsers
-      '-row-mt',    '1',
-      '-tile-columns', '2',           // parallel VP9 tile encoding
+      // VP9 in WebM with a real alpha plane. WebCodecs cannot encode VP9 alpha in
+      // any shipping browser, so this server path is the only route to a truly
+      // transparent video.
+      '-c:v', 'libvpx-vp9',
+      '-pix_fmt', 'yuva420p',
+      '-lossless', targetCrf === 0 ? '1' : '0',
+      '-crf', String(targetCrf),
+      '-b:v', '0',
+      '-deadline', 'good',
+      '-cpu-used', '4',
+      '-lag-in-frames', '0',    // fixes a VP9 premature-end bug in browsers
+      '-row-mt', '1',
+      '-tile-columns', '2',
       '-tile-rows', '2',
-      '-threads',   '0',              // auto thread count
-      '-auto-alt-ref', '0',           // MUST be 0 for alpha — alt-ref breaks yuva420p
+      '-threads', '0',
+      '-auto-alt-ref', '0',     // MUST be 0 for alpha — alt-ref breaks yuva420p
       '-an',
-      '-vf',        `scale=${targetSize}:${targetSize}:flags=lanczos,format=rgba`,
-      '-f',         'webm',
-      '-'
+      '-vf', `scale=${targetSize}:${targetSize}:flags=lanczos,format=rgba`,
+      '-f', 'webm',
+      '-',
     ];
 
-    const ffmpeg = spawn(FFMPEG_BIN, ffmpegArgs);
-    const chunks = [];
-    ffmpeg.stdout.on('data', c => chunks.push(c));
-    let errLog = '';
-    ffmpeg.stderr.on('data', d => { errLog += d.toString(); });
+    ffmpeg = spawn(FFMPEG_BIN, ffmpegArgs);
 
-    // ─── Render Loop (deterministic, absolute progress) ─────────────────
+    // Attach every listener BEFORE the render loop. spawn emits 'error'
+    // asynchronously (ENOENT, EACCES), and an unhandled 'error' on an
+    // EventEmitter takes the whole process down rather than failing the request.
+    const chunks = [];
+    let errLog = '';
+    let spawnError = null;
+    ffmpeg.on('error', (e) => { spawnError = e; });
+    ffmpeg.stdin.on('error', (e) => { spawnError = spawnError || e; });
+    ffmpeg.stdout.on('data', (c) => chunks.push(c));
+    ffmpeg.stderr.on('data', (d) => { errLog += d.toString(); });
+
+    const closed = new Promise((resolve) => {
+      ffmpeg.on('close', (code) => resolve(code));
+    });
+
+    // ─── Render loop ──────────────────────────────────────────────────
     for (let i = 0; i < frameCount; i++) {
-      // Absolute progress — never accumulated deltaTime
-      const progress = i / (frameCount - 1 || 1);
+      if (spawnError) throw spawnError;
+
+      // Sample over [0, 1) rather than [0, 1]. Including 1 would make the final
+      // frame a duplicate of frame 0, which shows up as a one-frame stutter every
+      // time the loop wraps.
+      const progress = i / frameCount;
 
       await page.evaluate((p) => {
-        const ctx      = window.__ctx;
-        const anim     = window.__anim;
-        const logoImg  = window.__logoImg;
-        const svgPaths = window.__svgPathData;
-
-        const state = window.CoreEngine.getFrameState(p, anim, svgPaths);
-        // When the caller picked a matte colour, let the engine paint it (opaque
-        // video); otherwise leave the canvas transparent so FFmpeg writes a real
-        // alpha plane.
-        const s = { ...state, global: { ...state.global, backgroundColor: anim.backgroundColor || null } };
-        window.CoreEngine.renderStateToCanvas(ctx, s, logoImg);
+        const state = window.CoreEngine.getFrameState(p, window.__anim, window.__svgPathData);
+        window.CoreEngine.renderStateToCanvas(state && window.__ctx ? window.__ctx : null, state, window.__logoImg);
       }, progress);
 
       const buffer = await page.screenshot({
         type: 'png',
         omitBackground: true,
-        clip: { x: 0, y: 0, width: internalSize, height: internalSize }
+        clip: { x: 0, y: 0, width: internalSize, height: internalSize },
       });
 
-      if (ffmpeg.stdin.writable) {
-        ffmpeg.stdin.write(buffer);
-      } else {
-        throw new Error(`FFmpeg crashed: ${errLog}`);
-      }
+      if (!ffmpeg.stdin.writable) throw new Error(`FFmpeg exited early: ${errLog}`);
+      await writeBackpressured(ffmpeg.stdin, buffer);
     }
 
     ffmpeg.stdin.end();
 
-    const webmBuffer = await new Promise((resolve, reject) => {
-      ffmpeg.on('close', code => {
-        if (code === 0) resolve(Buffer.concat(chunks));
-        else reject(new Error(`FFmpeg error (${code}): ${errLog}`));
-      });
-      ffmpeg.on('error', e => reject(e));
-    });
+    const code = await closed;
+    if (spawnError) throw spawnError;
+    if (code !== 0) throw new Error(`FFmpeg error (${code}): ${errLog}`);
 
+    const webmBuffer = Buffer.concat(chunks);
     console.log(`[Export] Success: ${webmBuffer.length} bytes`);
 
     return new NextResponse(webmBuffer, {
       headers: {
         'Content-Type': 'video/webm',
-        'Content-Disposition': `attachment; filename="loader-${animation.id}.webm"`,
-        'Cache-Control': 'no-store'
-      }
+        'Content-Disposition': `attachment; filename="loader-${animation.presetId || 'export'}.webm"`,
+        'Cache-Control': 'no-store',
+      },
     });
 
   } catch (error) {
     console.error('[Export] Critical Error:', error);
     // X-Export-Failed lets the client distinguish a real server failure (and log
-    // it) from an ordinary non-OK response, instead of silently degrading quality.
+    // it) from an ordinary non-OK response, instead of silently degrading.
     return NextResponse.json({ error: error.message }, {
       status: 500,
       headers: { 'X-Export-Failed': '1' },
     });
   } finally {
-    if (browser) await browser.close();
+    // Kill ffmpeg explicitly. If the render loop threw, stdin.end() was never
+    // reached and the child would otherwise sit forever waiting on input.
+    if (ffmpeg && ffmpeg.exitCode === null && !ffmpeg.killed) {
+      try { ffmpeg.stdin.destroy(); } catch {}
+      try { ffmpeg.kill('SIGKILL'); } catch {}
+    }
+    if (browser) await browser.close().catch(() => {});
   }
 }
