@@ -1,12 +1,13 @@
-import { Geist, Geist_Mono } from "next/font/google";
+import { Cabin, Geist_Mono } from "next/font/google";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeScript } from "@/components/theme-provider";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const cabin = Cabin({
+  variable: "--font-cabin",
   subsets: ["latin"],
   display: "swap",
+  weight: ["400", "500", "600", "700"],
 });
 
 const geistMono = Geist_Mono({
@@ -21,14 +22,12 @@ export const metadata = {
     "Design logo loading animations from a library of parametric presets, then export them as transparent WebM, GIF or Lottie.",
 };
 
-// In the App Router, viewport is its own export — declaring it inside `metadata`
-// is deprecated and silently ignored.
 export const viewport = {
   width: "device-width",
   initialScale: 1,
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#fafafa" },
-    { media: "(prefers-color-scheme: dark)", color: "#1a1a20" },
+    { media: "(prefers-color-scheme: light)", color: "#f5f5f7" },
+    { media: "(prefers-color-scheme: dark)", color: "#1c1c1e" },
   ],
 };
 
@@ -40,7 +39,7 @@ export default function RootLayout({ children }) {
             never sees a dark flash (and vice versa). */}
         <ThemeScript />
       </head>
-      <body className={`${geistSans.variable} ${geistMono.variable}`}>
+      <body className={`${cabin.variable} ${geistMono.variable}`}>
         <TooltipProvider delayDuration={300}>{children}</TooltipProvider>
       </body>
     </html>

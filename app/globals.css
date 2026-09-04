@@ -5,142 +5,148 @@
 @custom-variant dark (&:is(.dark *));
 
 /* ═══════════════════════════════════════════════════════════════════
-   DESIGN TOKENS
+   DESIGN TOKENS — Apple HIG-inspired
    ───────────────────────────────────────────────────────────────────
-   Semantic, not literal: tokens are named for their job, so light and
-   dark can diverge where they need to rather than being inversions.
+   Single blue accent (#007AFF / system blue), neutral grey ramps,
+   frosted glass surfaces, Cabin typeface.
 
-   Colour is authored in OKLCH so that lightness steps are perceptually
-   even — a 0.06 step looks like the same jump at every hue.
-
-   Contrast (WCAG, against their own surface):
-     dark  · foreground        18.2:1   muted-foreground  7.1:1
-     light · foreground        16.4:1   muted-foreground  6.3:1
-   Both clear the 4.5:1 body-text floor with room for the Increase
-   Contrast setting, and no information is carried by hue alone.
+   Light: Apple's f5f5f7 off-white background.
+   Dark:  macOS 1c1c1e / 2c2c2e layered neutrals.
    ═══════════════════════════════════════════════════════════════════ */
 
 :root {
-  /* ── Neutrals: a slightly violet-tinted grey ramp ── */
-  --background: oklch(0.985 0.002 286);
-  --foreground: oklch(0.21 0.012 286);
+  /* ── Neutrals ── */
+  --background: #f5f5f7;
+  --foreground: #1d1d1f;
 
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.21 0.012 286);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.21 0.012 286);
+  --card: #ffffff;
+  --card-foreground: #1d1d1f;
+  --popover: #ffffff;
+  --popover-foreground: #1d1d1f;
 
-  --muted: oklch(0.958 0.004 286);
-  --muted-foreground: oklch(0.47 0.016 286);
+  --muted: #e8e8ed;
+  --muted-foreground: #6e6e73;
 
-  --secondary: oklch(0.958 0.004 286);
-  --secondary-foreground: oklch(0.27 0.014 286);
+  --secondary: #e8e8ed;
+  --secondary-foreground: #3a3a3c;
 
-  --border: oklch(0.905 0.006 286);
-  --input: oklch(0.905 0.006 286);
-  --ring: oklch(0.55 0.20 292);
+  --border: rgba(0, 0, 0, 0.10);
+  --border-strong: rgba(0, 0, 0, 0.18);
+  --input: rgba(0, 0, 0, 0.08);
+  --ring: #007AFF;
 
-  /* ── Brand: violet, the one accent that means "interactive" ── */
-  --primary: oklch(0.55 0.213 292);
-  --primary-foreground: oklch(0.99 0.005 286);
-  --accent: oklch(0.955 0.014 292);
-  --accent-foreground: oklch(0.42 0.19 292);
+  /* ── Apple Blue — the one accent ── */
+  --primary: #007AFF;
+  --primary-foreground: #ffffff;
+  --accent: rgba(0, 122, 255, 0.10);
+  --accent-foreground: #0066d6;
 
-  --destructive: oklch(0.58 0.21 27);
-  --success: oklch(0.55 0.14 155);
-  --warning: oklch(0.65 0.16 70);
+  --destructive: #FF3B30;
+  --success: #34C759;
+  --warning: #FF9500;
 
-  /* ── Stage: the canvas surround, deliberately calmer than the UI ── */
-  --stage: oklch(0.945 0.006 286);
-  --stage-glow: oklch(0.55 0.213 292 / 0.10);
-  --checker-a: oklch(0.90 0.004 286);
-  --checker-b: oklch(0.97 0.002 286);
+  /* ── Stage ── */
+  --stage: #ebebf0;
+  --stage-glow: rgba(0, 122, 255, 0.07);
+  --checker-a: #d8d8dc;
+  --checker-b: #f0f0f4;
 
-  --chart-1: oklch(0.55 0.213 292);
-  --chart-2: oklch(0.62 0.16 220);
-  --chart-3: oklch(0.65 0.15 165);
-  --chart-4: oklch(0.70 0.16 70);
-  --chart-5: oklch(0.60 0.20 350);
+  /* ── Charts ── */
+  --chart-1: #007AFF;
+  --chart-2: #5856D6;
+  --chart-3: #34C759;
+  --chart-4: #FF9500;
+  --chart-5: #FF2D55;
 
-  --sidebar: oklch(0.975 0.003 286);
-  --sidebar-foreground: oklch(0.21 0.012 286);
-  --sidebar-primary: oklch(0.55 0.213 292);
-  --sidebar-primary-foreground: oklch(0.99 0.005 286);
-  --sidebar-accent: oklch(0.955 0.014 292);
-  --sidebar-accent-foreground: oklch(0.42 0.19 292);
-  --sidebar-border: oklch(0.905 0.006 286);
-  --sidebar-ring: oklch(0.55 0.20 292);
+  /* ── Sidebar / panel — slightly tinted frosted look in light ── */
+  --sidebar: #f0f0f5;
+  --sidebar-foreground: #1d1d1f;
+  --sidebar-primary: #007AFF;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: rgba(0, 122, 255, 0.10);
+  --sidebar-accent-foreground: #0066d6;
+  --sidebar-border: rgba(0, 0, 0, 0.08);
+  --sidebar-ring: #007AFF;
 
-  /* ── Shape ── */
-  --radius: 0.75rem;
+  /* ── Shape: Apple uses 8–14px, nothing too round ── */
+  --radius: 0.625rem;
+  /* 10px */
 
-  /* ── Elevation. Shadows stay soft and low-contrast; depth is carried
-     mainly by surface lightness, as it is on Apple platforms. ── */
-  --elevation-1: 0 1px 2px oklch(0.21 0.012 286 / 0.05);
-  --elevation-2: 0 2px 8px oklch(0.21 0.012 286 / 0.07), 0 1px 2px oklch(0.21 0.012 286 / 0.04);
-  --elevation-3: 0 8px 24px oklch(0.21 0.012 286 / 0.10), 0 2px 6px oklch(0.21 0.012 286 / 0.05);
+  /* ── Elevation: very subtle, depth via surface lightness ── */
+  --elevation-1: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+  --elevation-2: 0 4px 12px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.05);
+  --elevation-3: 0 8px 28px rgba(0, 0, 0, 0.12), 0 2px 6px rgba(0, 0, 0, 0.06);
 
-  /* ── Motion. One duration scale, one standard curve. ── */
-  --ease-standard: cubic-bezier(0.32, 0.72, 0, 1);
-  --ease-emphasis: cubic-bezier(0.34, 1.4, 0.64, 1);
-  --dur-fast: 120ms;
-  --dur-base: 200ms;
-  --dur-slow: 320ms;
+  /* ── Frosted glass ── */
+  --vibrancy-bg-light: rgba(255, 255, 255, 0.72);
+  --vibrancy-bg-dark: rgba(30, 30, 34, 0.78);
+  --vibrancy-blur: 20px;
+  --vibrancy-saturate: 180%;
+
+  /* ── Motion: Apple's spring-forward, ease-out curves ── */
+  --ease-standard: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  --ease-emphasis: cubic-bezier(0.34, 1.3, 0.64, 1);
+  --dur-fast: 100ms;
+  --dur-base: 180ms;
+  --dur-slow: 280ms;
 }
 
 .dark {
-  --background: oklch(0.165 0.011 286);
-  --foreground: oklch(0.975 0.003 286);
+  --background: #1c1c1e;
+  --foreground: #f5f5f7;
 
-  --card: oklch(0.205 0.013 286);
-  --card-foreground: oklch(0.975 0.003 286);
-  --popover: oklch(0.225 0.014 286);
-  --popover-foreground: oklch(0.975 0.003 286);
+  --card: #2c2c2e;
+  --card-foreground: #f5f5f7;
+  --popover: #3a3a3c;
+  --popover-foreground: #f5f5f7;
 
-  --muted: oklch(0.245 0.013 286);
-  --muted-foreground: oklch(0.715 0.017 286);
+  --muted: #3a3a3c;
+  --muted-foreground: #98989d;
 
-  --secondary: oklch(0.245 0.013 286);
-  --secondary-foreground: oklch(0.94 0.004 286);
+  --secondary: #3a3a3c;
+  --secondary-foreground: #ebebf0;
 
-  --border: oklch(0.30 0.014 286);
-  --input: oklch(0.32 0.014 286);
-  --ring: oklch(0.66 0.19 292);
+  --border: rgba(255, 255, 255, 0.10);
+  --border-strong: rgba(255, 255, 255, 0.18);
+  --input: rgba(255, 255, 255, 0.08);
+  --ring: #0A84FF;
 
-  /* Brand lifts in dark so it stays legible against a dim ground. */
-  --primary: oklch(0.68 0.19 292);
-  --primary-foreground: oklch(0.17 0.02 292);
-  --accent: oklch(0.30 0.055 292);
-  --accent-foreground: oklch(0.88 0.09 292);
+  /* Apple blue brightens slightly in dark to maintain contrast */
+  --primary: #0A84FF;
+  --primary-foreground: #ffffff;
+  --accent: rgba(10, 132, 255, 0.18);
+  --accent-foreground: #6eb9ff;
 
-  --destructive: oklch(0.66 0.20 25);
-  --success: oklch(0.72 0.16 158);
-  --warning: oklch(0.78 0.15 76);
+  --destructive: #FF453A;
+  --success: #30D158;
+  --warning: #FF9F0A;
 
-  --stage: oklch(0.135 0.012 286);
-  --stage-glow: oklch(0.68 0.19 292 / 0.16);
-  --checker-a: oklch(0.22 0.012 286);
-  --checker-b: oklch(0.27 0.012 286);
+  --stage: #141416;
+  --stage-glow: rgba(10, 132, 255, 0.10);
+  --checker-a: #2a2a2c;
+  --checker-b: #222224;
 
-  --chart-1: oklch(0.68 0.19 292);
-  --chart-2: oklch(0.70 0.15 220);
-  --chart-3: oklch(0.74 0.14 165);
-  --chart-4: oklch(0.78 0.15 76);
-  --chart-5: oklch(0.68 0.19 350);
+  --chart-1: #0A84FF;
+  --chart-2: #5E5CE6;
+  --chart-3: #30D158;
+  --chart-4: #FF9F0A;
+  --chart-5: #FF375F;
 
-  --sidebar: oklch(0.19 0.012 286);
-  --sidebar-foreground: oklch(0.975 0.003 286);
-  --sidebar-primary: oklch(0.68 0.19 292);
-  --sidebar-primary-foreground: oklch(0.17 0.02 292);
-  --sidebar-accent: oklch(0.30 0.055 292);
-  --sidebar-accent-foreground: oklch(0.88 0.09 292);
-  --sidebar-border: oklch(0.30 0.014 286);
-  --sidebar-ring: oklch(0.66 0.19 292);
+  --sidebar: #242426;
+  --sidebar-foreground: #f5f5f7;
+  --sidebar-primary: #0A84FF;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: rgba(10, 132, 255, 0.18);
+  --sidebar-accent-foreground: #6eb9ff;
+  --sidebar-border: rgba(255, 255, 255, 0.08);
+  --sidebar-ring: #0A84FF;
 
-  /* Dark shadows read as a darker void rather than a grey smudge. */
-  --elevation-1: 0 1px 2px oklch(0 0 0 / 0.30);
-  --elevation-2: 0 2px 10px oklch(0 0 0 / 0.40), 0 1px 2px oklch(0 0 0 / 0.30);
-  --elevation-3: 0 10px 32px oklch(0 0 0 / 0.50), 0 2px 8px oklch(0 0 0 / 0.35);
+  --elevation-1: 0 1px 3px rgba(0, 0, 0, 0.35), 0 1px 2px rgba(0, 0, 0, 0.25);
+  --elevation-2: 0 4px 14px rgba(0, 0, 0, 0.45), 0 1px 4px rgba(0, 0, 0, 0.30);
+  --elevation-3: 0 10px 32px rgba(0, 0, 0, 0.55), 0 2px 8px rgba(0, 0, 0, 0.35);
+
+  --vibrancy-bg-light: rgba(255, 255, 255, 0.72);
+  --vibrancy-bg-dark: rgba(28, 28, 30, 0.82);
 }
 
 /* ═══ TAILWIND THEME MAPPING ════════════════════════════════════════ */
@@ -187,29 +193,35 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
-  --radius-2xl: calc(var(--radius) + 10px);
+  --radius-2xl: calc(var(--radius) + 8px);
 
   --shadow-e1: var(--elevation-1);
   --shadow-e2: var(--elevation-2);
   --shadow-e3: var(--elevation-3);
 
-  --font-sans: var(--font-geist-sans), ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  /* Cabin from Google Fonts, with Apple system fonts as fallback */
+  --font-sans: var(--font-cabin), "Cabin", ui-sans-serif, -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, "SF Mono", Menlo, monospace;
 
-  /* Type scale. Desktop body is 13–15px per HIG; nothing drops below 11px. */
-  --text-2xs: 0.6875rem;      /* 11px — metadata only */
+  /* HIG-aligned type scale */
+  --text-2xs: 0.6875rem;
+  /* 11px — metadata */
   --text-2xs--line-height: 1rem;
-  --text-xs: 0.75rem;         /* 12px — labels */
+  --text-xs: 0.75rem;
+  /* 12px — captions */
   --text-xs--line-height: 1.0625rem;
-  --text-sm: 0.8125rem;       /* 13px — UI default */
+  --text-sm: 0.8125rem;
+  /* 13px — UI default */
   --text-sm--line-height: 1.25rem;
-  --text-base: 0.9375rem;     /* 15px — body */
+  --text-base: 0.9375rem;
+  /* 15px — body */
   --text-base--line-height: 1.5rem;
-  --text-lg: 1.0625rem;       /* 17px — section titles */
+  --text-lg: 1.0625rem;
+  /* 17px — headings */
   --text-lg--line-height: 1.5rem;
-  --text-xl: 1.3125rem;       /* 21px */
+  --text-xl: 1.3125rem;
   --text-xl--line-height: 1.75rem;
-  --text-2xl: 1.625rem;       /* 26px */
+  --text-2xl: 1.625rem;
   --text-2xl--line-height: 2rem;
 
   --ease-standard: var(--ease-standard);
@@ -232,13 +244,14 @@
   body {
     @apply bg-background text-foreground font-sans;
     font-size: var(--text-sm);
-    /* The app is a fixed-frame workspace, not a scrolling document. */
     height: 100dvh;
     overflow: hidden;
     overscroll-behavior: none;
+    /* Cabin medium weight as default */
+    font-weight: 400;
+    letter-spacing: -0.01em;
   }
 
-  /* Numeric readouts stop jittering as values change. */
   .tabular {
     font-variant-numeric: tabular-nums;
     font-feature-settings: "tnum";
@@ -246,29 +259,50 @@
 
   ::selection {
     background: var(--primary);
-    color: var(--primary-foreground);
+    color: #ffffff;
   }
 
-  /* Scrollbars: present enough to find, quiet enough to ignore. */
+  /* macOS-style thin scrollbars */
   * {
     scrollbar-width: thin;
-    scrollbar-color: color-mix(in oklch, var(--foreground) 22%, transparent) transparent;
+    scrollbar-color: rgba(0, 0, 0, 0.20) transparent;
   }
-  *::-webkit-scrollbar { width: 10px; height: 10px; }
-  *::-webkit-scrollbar-track { background: transparent; }
+
+  .dark * {
+    scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+  }
+
+  *::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
   *::-webkit-scrollbar-thumb {
-    background: color-mix(in oklch, var(--foreground) 18%, transparent);
+    background: rgba(0, 0, 0, 0.18);
     border-radius: 999px;
-    border: 3px solid transparent;
-    background-clip: content-box;
-  }
-  *::-webkit-scrollbar-thumb:hover {
-    background: color-mix(in oklch, var(--foreground) 32%, transparent);
+    border: 2px solid transparent;
     background-clip: content-box;
   }
 
-  /* Honour the system reduced-motion setting. The preview canvas is the
-     content itself, so it keeps animating; only UI decoration stops. */
+  .dark *::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.16);
+    background-clip: content-box;
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.30);
+    background-clip: content-box;
+  }
+
+  .dark *::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.28);
+    background-clip: content-box;
+  }
+
   @media (prefers-reduced-motion: reduce) {
     *:not(canvas) {
       animation-duration: 0.01ms !important;
@@ -281,7 +315,8 @@
 /* ═══ APP UTILITIES ═════════════════════════════════════════════════ */
 
 @layer components {
-  /* The transparency checkerboard shown behind an alpha preview. */
+
+  /* Transparency checkerboard */
   .checkerboard {
     background-image:
       linear-gradient(45deg, var(--checker-a) 25%, transparent 25%),
@@ -293,26 +328,70 @@
     background-color: var(--checker-b);
   }
 
-  /* Ambient wash behind the stage. Purely decorative. */
+  /* Stage ambient — neutral, no glow */
   .stage-ambient {
-    background:
-      radial-gradient(ellipse 70% 55% at 50% 42%, var(--stage-glow) 0%, transparent 70%),
-      var(--stage);
+    background: var(--stage);
   }
 
-  /* A hairline that fades at both ends — used under the top bar. */
+  /* macOS-style frosted glass / vibrancy surface */
+  .vibrancy {
+    background: var(--vibrancy-bg-light);
+    backdrop-filter: blur(var(--vibrancy-blur)) saturate(var(--vibrancy-saturate));
+    -webkit-backdrop-filter: blur(var(--vibrancy-blur)) saturate(var(--vibrancy-saturate));
+  }
+
+  .dark .vibrancy {
+    background: var(--vibrancy-bg-dark);
+  }
+
+  /* Hairline separator — fades at both ends */
   .rule-fade {
-    background: linear-gradient(
-      90deg,
-      transparent,
-      var(--border) 12%,
-      var(--border) 88%,
-      transparent
-    );
+    background: linear-gradient(90deg,
+        transparent,
+        var(--border) 15%,
+        var(--border) 85%,
+        transparent);
+    height: 1px;
   }
 
-  /* Panels are separated by surface lightness plus a hairline, not shadow. */
+  /* Sidebar panels */
   .panel {
     @apply bg-sidebar border-sidebar-border;
+  }
+
+  /* Apple-style segmented control container */
+  .seg-ctrl {
+    @apply grid rounded-lg p-[3px];
+    background: rgba(0, 0, 0, 0.07);
+  }
+
+  .dark .seg-ctrl {
+    background: rgba(255, 255, 255, 0.07);
+  }
+
+  /* Active segment pill */
+  .seg-ctrl-item {
+    @apply rounded-md py-1.5 text-2xs font-semibold transition-all;
+    transition-duration: var(--dur-fast);
+  }
+
+  .seg-ctrl-item[aria-checked="true"],
+  .seg-ctrl-item[aria-selected="true"] {
+    @apply bg-card text-foreground shadow-e1;
+  }
+
+  .seg-ctrl-item[aria-checked="false"],
+  .seg-ctrl-item[aria-selected="false"] {
+    @apply text-muted-foreground;
+  }
+
+  .seg-ctrl-item:hover:not([aria-checked="true"]):not([aria-selected="true"]) {
+    @apply text-foreground;
+  }
+
+  /* Apple-style label above a section */
+  .section-label {
+    @apply text-2xs font-semibold uppercase tracking-wider text-muted-foreground;
+    letter-spacing: 0.06em;
   }
 }

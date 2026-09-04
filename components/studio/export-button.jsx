@@ -5,6 +5,7 @@ import { Download, Loader2, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ExportPanel } from "./export-panel";
+import { cn } from "@/lib/utils";
 
 /**
  * Export lives in the toolbar rather than the inspector: it is the app's primary
@@ -15,12 +16,18 @@ export function ExportButton({ settings, onChange, onExport, isExporting, progre
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="flex items-stretch">
+    <div className="flex items-stretch rounded-xl overflow-hidden shadow-e1">
+      {/* Primary action — Apple-style blue button */}
       <Button
         onClick={onExport}
         disabled={isExporting}
-        className="gap-2 rounded-r-none pr-2.5"
         size={compact ? "sm" : "default"}
+        className={cn(
+          "gap-2 rounded-r-none pr-3 font-semibold",
+          "bg-primary hover:bg-primary/90 text-white",
+          "transition-opacity duration-100",
+          isExporting && "opacity-80"
+        )}
       >
         {isExporting ? (
           <>
@@ -35,19 +42,22 @@ export function ExportButton({ settings, onChange, onExport, isExporting, progre
         )}
       </Button>
 
+      {/* Chevron — options popover */}
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <Button
-            variant="default"
             size={compact ? "sm" : "default"}
             disabled={isExporting}
             aria-label="Export options"
-            className="rounded-l-none border-l border-primary-foreground/20 px-2"
+            className={cn(
+              "rounded-l-none border-l border-white/20 px-2",
+              "bg-primary hover:bg-primary/90 text-white",
+            )}
           >
             <ChevronDown className="size-4" aria-hidden />
           </Button>
         </PopoverTrigger>
-        <PopoverContent align="end" className="w-80 p-0">
+        <PopoverContent align="end" className="w-80 p-0 rounded-xl overflow-hidden shadow-e3 border-border/60">
           <ExportPanel
             settings={settings}
             onChange={onChange}

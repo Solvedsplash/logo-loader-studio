@@ -32,8 +32,10 @@ export function LogoImport({ fileName, isRaster, pathCount, error, onFile, onRes
           handleFiles(e.dataTransfer.files);
         }}
         className={cn(
-          "relative rounded-xl border border-dashed p-4 text-center transition-colors",
-          dragging ? "border-primary bg-primary/5" : "border-border bg-muted/40"
+          "relative rounded-xl border border-dashed p-4 text-center transition-all duration-150",
+          dragging
+            ? "border-primary bg-primary/8 scale-[1.01]"
+            : "border-border hover:border-border-strong bg-black/[0.02] dark:bg-white/[0.02]"
         )}
       >
         <input
@@ -46,12 +48,12 @@ export function LogoImport({ fileName, isRaster, pathCount, error, onFile, onRes
         />
 
         {fileName ? (
-          <div className="flex items-center gap-2 text-left">
+          <div className="flex items-center gap-2.5 text-left">
             <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
               <FileImage className="size-4" aria-hidden />
             </span>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-xs font-medium">{fileName}</p>
+              <p className="truncate text-xs font-semibold">{fileName}</p>
               <p className="text-2xs text-muted-foreground">
                 {isRaster
                   ? "Raster image — no paths to trace"
@@ -61,7 +63,7 @@ export function LogoImport({ fileName, isRaster, pathCount, error, onFile, onRes
             <Button
               variant="ghost"
               size="icon"
-              className="size-7 shrink-0"
+              className="size-7 shrink-0 rounded-full text-muted-foreground hover:text-foreground hover:bg-black/6 dark:hover:bg-white/10"
               onClick={onReset}
               aria-label="Remove logo and restore the default"
             >
@@ -70,15 +72,17 @@ export function LogoImport({ fileName, isRaster, pathCount, error, onFile, onRes
           </div>
         ) : (
           <>
-            <Upload className="mx-auto mb-1.5 size-5 text-muted-foreground" aria-hidden />
+            <div className="mx-auto mb-2 grid size-9 place-items-center rounded-full bg-black/6 dark:bg-white/8">
+              <Upload className="size-4 text-muted-foreground" aria-hidden />
+            </div>
             <label
               htmlFor="logo-file-input"
-              className="cursor-pointer text-xs font-medium text-primary hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+              className="cursor-pointer text-xs font-semibold text-primary hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
             >
               Choose a logo
             </label>
             <span className="text-xs text-muted-foreground"> or drag it here</span>
-            <p className="mt-0.5 text-2xs text-muted-foreground">
+            <p className="mt-1 text-2xs text-muted-foreground">
               SVG recommended · PNG, JPG, WebP supported
             </p>
           </>

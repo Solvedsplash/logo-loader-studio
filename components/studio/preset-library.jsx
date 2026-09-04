@@ -5,14 +5,13 @@ import * as Icons from "lucide-react";
 import { Search, X, Check } from "lucide-react";
 import { PRESETS, PRESETS_BY_GROUP, GROUPS } from "@/lib/presets";
 import { PresetThumb } from "./preset-thumb";
-import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 
 const TAG_STYLES = {
-  Signature: "bg-primary/15 text-primary border-primary/25",
-  Popular: "bg-chart-2/15 text-chart-2 border-chart-2/25",
-  New: "bg-chart-3/15 text-chart-3 border-chart-3/25",
+  Signature: "bg-primary/12 text-primary border-primary/20",
+  Popular: "bg-chart-2/12 text-chart-2 border-chart-2/20",
+  New: "bg-success/12 text-success border-success/20",
 };
 
 function PresetCard({ preset, selected, logoImg, paths, onSelect }) {
@@ -28,11 +27,11 @@ function PresetCard({ preset, selected, logoImg, paths, onSelect }) {
       onBlur={() => setHovered(false)}
       aria-pressed={selected}
       className={cn(
-        "group relative flex flex-col overflow-hidden rounded-xl border text-left transition-all",
+        "group relative flex flex-col overflow-hidden rounded-xl border text-left transition-all duration-150",
         "focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
         selected
-          ? "border-primary bg-primary/5 shadow-e2"
-          : "border-border bg-card hover:border-foreground/20 hover:shadow-e2"
+          ? "border-primary/50 ring-2 ring-primary/25 bg-primary/5 shadow-e2"
+          : "border-border/60 bg-card hover:border-border-strong hover:shadow-e2"
       )}
     >
       <div className="checkerboard relative aspect-square w-full overflow-hidden">
@@ -43,14 +42,14 @@ function PresetCard({ preset, selected, logoImg, paths, onSelect }) {
           active={hovered || selected}
         />
         {selected && (
-          <span className="absolute right-1.5 top-1.5 grid size-5 place-items-center rounded-full bg-primary text-primary-foreground shadow-e1">
+          <span className="absolute right-1.5 top-1.5 grid size-5 place-items-center rounded-full bg-primary text-white shadow-e1">
             <Check className="size-3" strokeWidth={3} aria-hidden />
           </span>
         )}
         {preset.tag && !selected && (
           <span
             className={cn(
-              "absolute left-1.5 top-1.5 rounded-full border px-1.5 py-px text-2xs font-medium backdrop-blur-sm",
+              "absolute left-1.5 top-1.5 rounded-full border px-1.5 py-0.5 text-2xs font-semibold backdrop-blur-sm",
               TAG_STYLES[preset.tag]
             )}
           >
@@ -90,8 +89,8 @@ export function PresetLibrary({ selectedId, onSelect, logoImg, paths, columns = 
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      {/* Search */}
-      <div className="border-b border-border p-3">
+      {/* Search — macOS Spotlight style */}
+      <div className="border-b border-border/60 p-3">
         <div className="relative">
           <Search
             className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
@@ -103,14 +102,19 @@ export function PresetLibrary({ selectedId, onSelect, logoImg, paths, columns = 
             onChange={(e) => setQuery(e.target.value)}
             placeholder={`Search ${PRESETS.length} presets…`}
             aria-label="Search presets"
-            className="h-8 w-full rounded-lg border border-input bg-background pl-8 pr-7 text-xs placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+            className={cn(
+              "h-8 w-full rounded-lg pl-8 pr-7 text-xs placeholder:text-muted-foreground",
+              "bg-black/[0.05] dark:bg-white/[0.06] border-0",
+              "focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
+              "transition-shadow duration-150"
+            )}
           />
           {searching && (
             <button
               type="button"
               onClick={() => setQuery("")}
               aria-label="Clear search"
-              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-sm text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-0.5 text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
             >
               <X className="size-3.5" aria-hidden />
             </button>
@@ -118,12 +122,9 @@ export function PresetLibrary({ selectedId, onSelect, logoImg, paths, columns = 
         </div>
       </div>
 
-      {/* Group rail */}
+      {/* Group rail — Apple segmented-control style, wrapping */}
       {!searching && (
-        <div className="border-b border-border p-2">
-          {/* Wrapped rather than horizontally scrolled: seven categories in a
-              300px panel would otherwise hide half of them off-screen with no
-              affordance that more exist. */}
+        <div className="border-b border-border/60 p-2">
           <div className="flex flex-wrap gap-1" role="tablist" aria-label="Preset categories">
             {PRESETS_BY_GROUP.map((g) => {
               const Icon = Icons[g.icon] ?? Icons.Circle;
@@ -136,16 +137,16 @@ export function PresetLibrary({ selectedId, onSelect, logoImg, paths, columns = 
                   aria-selected={active}
                   onClick={() => setGroupId(g.id)}
                   className={cn(
-                    "flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium transition-colors",
+                    "flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all duration-100",
                     "focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
                     active
-                      ? "bg-primary text-primary-foreground"
-                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                      ? "bg-primary text-white shadow-e1"
+                      : "text-muted-foreground hover:bg-black/6 dark:hover:bg-white/8 hover:text-foreground"
                   )}
                 >
                   <Icon className="size-3.5 shrink-0" aria-hidden />
                   {g.name}
-                  <span className={cn("tabular text-2xs", active ? "opacity-70" : "opacity-60")}>
+                  <span className={cn("tabular text-2xs", active ? "opacity-70" : "opacity-50")}>
                     {g.presets.length}
                   </span>
                 </button>
@@ -171,7 +172,7 @@ export function PresetLibrary({ selectedId, onSelect, logoImg, paths, columns = 
 
           {visible.length === 0 ? (
             <div className="py-10 text-center">
-              <p className="text-xs text-muted-foreground">No presets match “{query}”.</p>
+              <p className="text-xs text-muted-foreground">No presets match "{query}".</p>
             </div>
           ) : (
             <div

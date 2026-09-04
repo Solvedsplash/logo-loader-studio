@@ -1,37 +1,46 @@
 "use client";
 
-import { Moon, Sun, Sparkles, PanelLeft, PanelRight } from "lucide-react";
+import { Moon, Sun, Wand2, PanelLeft, PanelRight } from "lucide-react";
 import { useTheme } from "@/components/theme-provider";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
 
 export function TopBar({ onToggleLeft, onToggleRight, leftOpen, rightOpen, children }) {
   const { theme, toggle } = useTheme();
 
   return (
-    <header className="relative z-20 flex h-13 shrink-0 items-center justify-between gap-3 bg-card px-3 py-2">
-      <div className="flex items-center gap-2">
+    <header className="relative z-20 flex h-12 shrink-0 items-center justify-between gap-3 vibrancy border-b border-border/60 px-3">
+      {/* App identity */}
+      <div className="flex items-center gap-2.5">
         <span
-          className="grid size-7 place-items-center rounded-lg bg-primary text-primary-foreground shadow-e1"
+          className="grid size-7 place-items-center rounded-lg bg-primary text-white shadow-e1"
           aria-hidden
         >
-          <Sparkles className="size-4" />
+          <Wand2 className="size-3.5" strokeWidth={2} />
         </span>
         <div className="leading-tight">
-          <h1 className="text-sm font-semibold tracking-tight">Logo Loader Studio</h1>
+          <h1 className="text-sm font-semibold tracking-tight text-foreground">
+            Logo Loader Studio
+          </h1>
           <p className="hidden text-2xs text-muted-foreground sm:block">
             Animated loaders from your own logo
           </p>
         </div>
       </div>
 
-      <div className="flex items-center gap-1">
+      {/* Controls */}
+      <div className="flex items-center gap-0.5">
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
               variant="ghost"
               size="icon"
-              className="hidden size-8 lg:inline-flex"
+              className={cn(
+                "hidden size-8 rounded-lg lg:inline-flex",
+                "text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/8",
+                leftOpen && "text-foreground bg-black/6 dark:bg-white/10"
+              )}
               onClick={onToggleLeft}
               aria-pressed={leftOpen}
               aria-label="Toggle the presets panel"
@@ -47,7 +56,11 @@ export function TopBar({ onToggleLeft, onToggleRight, leftOpen, rightOpen, child
             <Button
               variant="ghost"
               size="icon"
-              className="hidden size-8 lg:inline-flex"
+              className={cn(
+                "hidden size-8 rounded-lg lg:inline-flex",
+                "text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/8",
+                rightOpen && "text-foreground bg-black/6 dark:bg-white/10"
+              )}
               onClick={onToggleRight}
               aria-pressed={rightOpen}
               aria-label="Toggle the settings panel"
@@ -58,12 +71,14 @@ export function TopBar({ onToggleLeft, onToggleRight, leftOpen, rightOpen, child
           <TooltipContent>Settings panel</TooltipContent>
         </Tooltip>
 
+        <div className="mx-1 h-5 w-px bg-border" aria-hidden />
+
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
               variant="ghost"
               size="icon"
-              className="size-8"
+              className="size-8 rounded-lg text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/8"
               onClick={toggle}
               aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} appearance`}
             >
@@ -77,9 +92,6 @@ export function TopBar({ onToggleLeft, onToggleRight, leftOpen, rightOpen, child
 
         {children && <div className="ml-1 hidden lg:block">{children}</div>}
       </div>
-
-      {/* Hairline that fades at the edges, in place of a hard border. */}
-      <div className="rule-fade pointer-events-none absolute inset-x-0 bottom-0 h-px" aria-hidden />
     </header>
   );
 }

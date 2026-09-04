@@ -36,16 +36,13 @@ export function ExportPanel({ settings, onChange, onExport, isExporting, progres
   const set = (key, value) => onChange({ ...settings, [key]: value });
   const active = FORMATS.find((f) => f.id === settings.format) ?? FORMATS[0];
 
-  // Lottie bakes only the logo transform track, so warn when the chosen preset
-  // relies on strokes or decorations that cannot be represented.
   const lottieLossy = settings.format === "json" && settings.familyIsDecorated;
 
   return (
     <div className="space-y-3 p-3">
+      {/* Format picker — Apple card-button grid */}
       <div>
-        <Label className="mb-1.5 block text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
-          Format
-        </Label>
+        <Label className="mb-2 block section-label">Format</Label>
         <div className="grid grid-cols-3 gap-1.5" role="radiogroup" aria-label="Export format">
           {FORMATS.map((f) => {
             const Icon = f.icon;
@@ -58,11 +55,11 @@ export function ExportPanel({ settings, onChange, onExport, isExporting, progres
                 aria-checked={isActive}
                 onClick={() => set("format", f.id)}
                 className={cn(
-                  "flex flex-col items-center gap-1 rounded-lg border px-2 py-2.5 text-xs font-medium transition-all",
+                  "flex flex-col items-center gap-1.5 rounded-xl border px-2 py-2.5 text-xs font-semibold transition-all duration-100",
                   "focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
                   isActive
-                    ? "border-primary bg-primary/10 text-primary"
-                    : "border-border text-muted-foreground hover:border-foreground/20 hover:text-foreground"
+                    ? "border-primary/40 bg-primary/10 text-primary shadow-e1"
+                    : "border-border/60 text-muted-foreground hover:border-border-strong hover:text-foreground hover:bg-black/3 dark:hover:bg-white/4"
                 )}
               >
                 <Icon className="size-4" aria-hidden />
@@ -75,23 +72,24 @@ export function ExportPanel({ settings, onChange, onExport, isExporting, progres
       </div>
 
       {lottieLossy && (
-        <p className="flex gap-1.5 rounded-lg border border-warning/30 bg-warning/10 p-2 text-2xs leading-snug text-foreground">
+        <p className="flex gap-1.5 rounded-xl border border-warning/25 bg-warning/8 p-2.5 text-2xs leading-snug text-foreground">
           <AlertCircle className="mt-px size-3 shrink-0 text-warning" aria-hidden />
           <span>
-            This preset uses strokes or decorations that Lottie can’t represent.
-            Only the logo’s movement and fade will be exported — pick WebM or GIF
+            This preset uses strokes or decorations that Lottie can't represent.
+            Only the logo's movement and fade will be exported — pick WebM or GIF
             to keep the full effect.
           </span>
         </p>
       )}
 
-      <Separator />
+      <Separator className="opacity-60" />
 
+      {/* Settings rows — iOS Settings-row style */}
       <div className="grid grid-cols-2 gap-2">
         <div className="space-y-1.5">
-          <Label htmlFor="export-size" className="text-xs font-medium">Size</Label>
+          <Label htmlFor="export-size" className="text-xs font-semibold">Size</Label>
           <Select value={String(settings.size)} onValueChange={(v) => set("size", Number(v))}>
-            <SelectTrigger id="export-size" size="sm" className="w-full">
+            <SelectTrigger id="export-size" size="sm" className="w-full rounded-lg border-border/60">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -103,9 +101,9 @@ export function ExportPanel({ settings, onChange, onExport, isExporting, progres
         </div>
 
         <div className="space-y-1.5">
-          <Label htmlFor="export-fps" className="text-xs font-medium">Frame rate</Label>
+          <Label htmlFor="export-fps" className="text-xs font-semibold">Frame rate</Label>
           <Select value={String(settings.fps)} onValueChange={(v) => set("fps", Number(v))}>
-            <SelectTrigger id="export-fps" size="sm" className="w-full">
+            <SelectTrigger id="export-fps" size="sm" className="w-full rounded-lg border-border/60">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -119,9 +117,9 @@ export function ExportPanel({ settings, onChange, onExport, isExporting, progres
 
       {settings.format !== "json" && (
         <div className="space-y-1.5">
-          <Label htmlFor="export-quality" className="text-xs font-medium">Quality</Label>
+          <Label htmlFor="export-quality" className="text-xs font-semibold">Quality</Label>
           <Select value={settings.quality} onValueChange={(v) => set("quality", v)}>
-            <SelectTrigger id="export-quality" size="sm" className="w-full">
+            <SelectTrigger id="export-quality" size="sm" className="w-full rounded-lg border-border/60">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -134,7 +132,13 @@ export function ExportPanel({ settings, onChange, onExport, isExporting, progres
         </div>
       )}
 
-      <Button onClick={onExport} disabled={isExporting} className="w-full gap-2" size="default">
+      {/* Export button — Apple blue */}
+      <Button
+        onClick={onExport}
+        disabled={isExporting}
+        className="w-full gap-2 rounded-xl font-semibold bg-primary hover:bg-primary/90 text-white"
+        size="default"
+      >
         {isExporting ? (
           <>
             <Loader2 className="size-4 animate-spin" aria-hidden />
@@ -148,6 +152,7 @@ export function ExportPanel({ settings, onChange, onExport, isExporting, progres
         )}
       </Button>
 
+      {/* Progress bar */}
       {isExporting && (
         <div
           className="h-1 w-full overflow-hidden rounded-full bg-muted"
