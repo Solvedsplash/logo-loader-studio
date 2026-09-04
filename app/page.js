@@ -545,14 +545,6 @@ export default function Home() {
               </select>
             </div>
             <div className="setting-row">
-              <span className="setting-label">Format</span>
-              <div className="segment-control" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
-                <button className={`segment-btn ${settings.format === 'json' ? 'active' : ''}`} onClick={() => setSetting('format', 'json')}>JSON</button>
-                <button className={`segment-btn ${settings.format === 'webm' ? 'active' : ''}`} onClick={() => setSetting('format', 'webm')}>WebM</button>
-                <button className={`segment-btn ${settings.format === 'gif' ? 'active' : ''}`} onClick={() => setSetting('format', 'gif')}>GIF</button>
-              </div>
-            </div>
-            <div className="setting-row">
               <span className="setting-label">FPS</span>
               <select className="setting-select" value={settings.fps} onChange={e => setSetting('fps', Number(e.target.value))}>
                 <option value={24}>24 FPS</option>
@@ -575,17 +567,15 @@ export default function Home() {
                 GIF has no real transparency — will export on a white matte.
               </div>
             )}
-            {(settings.format === 'webm' || settings.format === 'gif') && (
-              <div className="setting-row">
-                <span className="setting-label">Quality</span>
-                <select className="setting-select" value={settings.quality} onChange={e => setSetting('quality', e.target.value)}>
-                  <option value="low">Low — 1 Mbps</option>
-                  <option value="medium">Medium — 3 Mbps</option>
-                  <option value="high">High — 8 Mbps</option>
-                  <option value="ultra">Ultra — 16 Mbps</option>
-                </select>
-              </div>
-            )}
+            <div className="setting-row">
+              <span className="setting-label">Quality</span>
+              <select className="setting-select" value={settings.quality} onChange={e => setSetting('quality', e.target.value)}>
+                <option value="low">Low — 1 Mbps</option>
+                <option value="medium">Medium — 3 Mbps</option>
+                <option value="high">High — 8 Mbps</option>
+                <option value="ultra">Ultra — 16 Mbps</option>
+              </select>
+            </div>
           </div>
         </aside>
 
@@ -719,14 +709,6 @@ export default function Home() {
                 </select>
               </div>
               <div className="setting-row">
-                <span className="setting-label">Format</span>
-                <div className="segment-control" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
-                  <button className={`segment-btn ${settings.format === 'json' ? 'active' : ''}`} onClick={() => setSetting('format', 'json')}>JSON</button>
-                  <button className={`segment-btn ${settings.format === 'webm' ? 'active' : ''}`} onClick={() => setSetting('format', 'webm')}>WebM</button>
-                  <button className={`segment-btn ${settings.format === 'gif' ? 'active' : ''}`} onClick={() => setSetting('format', 'gif')}>GIF</button>
-                </div>
-              </div>
-              <div className="setting-row">
                 <span className="setting-label">FPS</span>
                 <select className="setting-select" value={settings.fps} onChange={e => setSetting('fps', Number(e.target.value))}>
                   <option value={24}>24 FPS</option>
@@ -749,17 +731,15 @@ export default function Home() {
                   GIF has no real transparency — will export on a white matte.
                 </div>
               )}
-              {(settings.format === 'webm' || settings.format === 'gif') && (
-                <div className="setting-row">
-                  <span className="setting-label">Quality</span>
-                  <select className="setting-select" value={settings.quality} onChange={e => setSetting('quality', e.target.value)}>
-                    <option value="low">Low</option>
-                    <option value="medium">Medium</option>
-                    <option value="high">High</option>
-                    <option value="ultra">Ultra</option>
-                  </select>
-                </div>
-              )}
+              <div className="setting-row">
+                <span className="setting-label">Quality</span>
+                <select className="setting-select" value={settings.quality} onChange={e => setSetting('quality', e.target.value)}>
+                  <option value="low">Low — 1 Mbps</option>
+                  <option value="medium">Medium — 3 Mbps</option>
+                  <option value="high">High — 8 Mbps</option>
+                  <option value="ultra">Ultra — 16 Mbps</option>
+                </select>
+              </div>
             </div>
           )}
         </div>
