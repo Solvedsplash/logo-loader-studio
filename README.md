@@ -5,8 +5,9 @@ transparent WebM, GIF or Lottie.
 
 ## Features
 
-- **62 parametric presets** across 7 categories — path drawing, pulse, spin,
-  float, entrance, light & glow, and orbit & rings.
+- **122 parametric presets** across 10 categories — ink & handwriting, path
+  drawing, reveal & assemble, fill & colour, signature FX, entrance, orbit,
+  spin, pulse and float.
 - **Everything is configurable.** Each preset declares typed parameters
   (amplitude, stroke mode, glow, stagger, ring count…) plus global timing —
   duration, easing, direction and playback speed. Controls are generated from

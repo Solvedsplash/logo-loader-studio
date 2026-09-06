@@ -9,7 +9,7 @@ export function TopBar({ onToggleLeft, onToggleRight, leftOpen, rightOpen, child
   const { theme, toggle } = useTheme();
 
   return (
-    <header className="relative z-20 flex h-13 shrink-0 items-center justify-between gap-3 bg-card px-3 py-2">
+    <header className="material-clear relative z-30 flex h-14 shrink-0 items-center justify-between gap-3 px-3 py-2">
       <div className="flex items-center gap-2">
         <span
           className="grid size-7 place-items-center rounded-lg bg-primary text-primary-foreground shadow-e1"
@@ -18,8 +18,11 @@ export function TopBar({ onToggleLeft, onToggleRight, leftOpen, rightOpen, child
           <Sparkles className="size-4" />
         </span>
         <div className="leading-tight">
-          <h1 className="text-sm font-semibold tracking-tight">Logo Loader Studio</h1>
-          <p className="hidden text-2xs text-muted-foreground sm:block">
+          {/* 17px: the app title needs to sit a clear two steps above the 13px
+              body text. At 13px it was indistinguishable from every other label
+              and hierarchy rested on weight alone. */}
+          <h1 className="text-lg font-semibold tracking-[-0.4px]">Logo Loader Studio</h1>
+          <p className="hidden text-xs text-muted-foreground sm:block">
             Animated loaders from your own logo
           </p>
         </div>
@@ -31,7 +34,7 @@ export function TopBar({ onToggleLeft, onToggleRight, leftOpen, rightOpen, child
             <Button
               variant="ghost"
               size="icon"
-              className="hidden size-8 lg:inline-flex"
+              className="hidden size-8 rounded-sm lg:inline-flex"
               onClick={onToggleLeft}
               aria-pressed={leftOpen}
               aria-label="Toggle the presets panel"
@@ -47,7 +50,7 @@ export function TopBar({ onToggleLeft, onToggleRight, leftOpen, rightOpen, child
             <Button
               variant="ghost"
               size="icon"
-              className="hidden size-8 lg:inline-flex"
+              className="hidden size-8 rounded-sm lg:inline-flex"
               onClick={onToggleRight}
               aria-pressed={rightOpen}
               aria-label="Toggle the settings panel"
@@ -63,7 +66,7 @@ export function TopBar({ onToggleLeft, onToggleRight, leftOpen, rightOpen, child
             <Button
               variant="ghost"
               size="icon"
-              className="size-8"
+              className="size-8 rounded-sm"
               onClick={toggle}
               aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} appearance`}
             >

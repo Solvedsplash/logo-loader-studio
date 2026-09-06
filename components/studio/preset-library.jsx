@@ -103,7 +103,7 @@ export function PresetLibrary({ selectedId, onSelect, logoImg, paths, columns = 
             onChange={(e) => setQuery(e.target.value)}
             placeholder={`Search ${PRESETS.length} presets…`}
             aria-label="Search presets"
-            className="h-8 w-full rounded-lg border border-input bg-background pl-8 pr-7 text-xs placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+            className="h-8 w-full rounded-sm border border-input bg-background pl-8 pr-7 text-xs placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
           />
           {searching && (
             <button
@@ -136,7 +136,9 @@ export function PresetLibrary({ selectedId, onSelect, logoImg, paths, columns = 
                   aria-selected={active}
                   onClick={() => setGroupId(g.id)}
                   className={cn(
-                    "flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium transition-colors",
+                    // Fully rounded: these are filter chips, and the pill shape
+                    // keeps them from reading as a segmented control.
+                    "flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-xs font-medium transition-colors",
                     "focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
                     active
                       ? "bg-primary text-primary-foreground"

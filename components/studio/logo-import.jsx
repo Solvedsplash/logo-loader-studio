@@ -61,7 +61,7 @@ export function LogoImport({ fileName, isRaster, pathCount, error, onFile, onRes
             <Button
               variant="ghost"
               size="icon"
-              className="size-7 shrink-0"
+              className="size-7 shrink-0 rounded-sm"
               onClick={onReset}
               aria-label="Remove logo and restore the default"
             >

@@ -19,7 +19,12 @@ const CANVAS_PX = 880; // backing store; displayed responsively
  *  2. The playhead is kept in a ref and advanced by elapsed time, so changing a
  *     parameter re-renders the current frame instead of snapping back to zero.
  */
-export function Stage({ animation, logoImg, paths, showChecker, onToggleChecker }) {
+export function Stage({
+  animation, logoImg, paths, showChecker, onToggleChecker,
+  // Widths of the panels floating over the stage. The canvas centres in the
+  // gap between them rather than in the full row, so it never hides behind one.
+  insetLeft = 0, insetRight = 0,
+}) {
   const canvasRef = useRef(null);
   const rafRef = useRef(0);
   const progressRef = useRef(0);
@@ -86,7 +91,10 @@ export function Stage({ animation, logoImg, paths, showChecker, onToggleChecker 
   return (
     <div className="flex h-full min-h-0 flex-col">
       {/* Stage */}
-      <div className="stage-ambient relative flex min-h-0 flex-1 items-center justify-center p-6">
+      <div
+        className="stage-ambient relative flex min-h-0 flex-1 items-center justify-center p-6"
+        style={{ paddingLeft: insetLeft + 24, paddingRight: insetRight + 24 }}
+      >
         <div
           className={cn(
             "relative aspect-square w-full max-w-[min(58vh,560px)] overflow-hidden rounded-2xl border border-border shadow-e3",
@@ -106,14 +114,17 @@ export function Stage({ animation, logoImg, paths, showChecker, onToggleChecker 
         </div>
       </div>
 
-      {/* Transport */}
-      <div className="flex items-center gap-3 border-t border-border bg-card px-4 py-2.5">
+      {/* Transport — functional layer, so it takes the clear material. */}
+      <div
+        className="material-clear relative z-20 flex items-center gap-3 border-t px-4 py-2.5"
+        style={{ paddingLeft: insetLeft + 16, paddingRight: insetRight + 16 }}
+      >
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
               variant="ghost"
               size="icon"
-              className="size-8 shrink-0"
+              className="size-8 shrink-0 rounded-sm"
               onClick={() => setPlaying((p) => !p)}
               aria-label={playing ? "Pause preview" : "Play preview"}
             >
@@ -128,7 +139,7 @@ export function Stage({ animation, logoImg, paths, showChecker, onToggleChecker 
             <Button
               variant="ghost"
               size="icon"
-              className="size-8 shrink-0"
+              className="size-8 shrink-0 rounded-sm"
               onClick={restart}
               aria-label="Restart from the beginning"
             >
@@ -158,7 +169,7 @@ export function Stage({ animation, logoImg, paths, showChecker, onToggleChecker 
             <Button
               variant={showChecker ? "secondary" : "ghost"}
               size="icon"
-              className="size-8 shrink-0"
+              className="size-8 shrink-0 rounded-sm"
               onClick={onToggleChecker}
               disabled={!transparent}
               aria-label="Toggle the transparency checkerboard"

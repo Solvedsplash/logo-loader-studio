@@ -59,7 +59,8 @@ export function Inspector({
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex items-start justify-between gap-2 border-b border-border p-3">
         <div className="min-w-0">
-          <h2 className="truncate text-sm font-semibold">{preset.name}</h2>
+          {/* 15px: one step above body, so the panel has an obvious subject. */}
+          <h2 className="truncate text-base font-semibold tracking-[-0.2px]">{preset.name}</h2>
           <p className="truncate text-2xs text-muted-foreground">
             {preset.family} · {schema.length} parameters
           </p>
@@ -105,7 +106,8 @@ export function Inspector({
                     aria-checked={speed === s}
                     onClick={() => onTimingChange("speed", s)}
                     className={cn(
-                      "tabular rounded-md py-1.5 text-2xs font-medium transition-colors",
+                      // 8px = 12px outer radius − 4px track padding.
+                      "tabular rounded-sm py-1.5 text-2xs font-medium transition-colors",
                       "focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
                       speed === s
                         ? "bg-card text-foreground shadow-e1"
@@ -139,7 +141,8 @@ export function Inspector({
                   aria-checked={background.mode === opt.value}
                   onClick={() => onBackgroundChange({ ...background, mode: opt.value })}
                   className={cn(
-                    "rounded-md px-2 py-1.5 text-xs font-medium transition-colors",
+                    // 8px = 12px outer radius − 4px track padding.
+                    "rounded-sm px-2 py-1.5 text-xs font-medium transition-colors",
                     "focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
                     background.mode === opt.value
                       ? "bg-card text-foreground shadow-e1"
@@ -154,7 +157,7 @@ export function Inspector({
             {background.mode === "color" ? (
               <div className="flex items-center gap-2">
                 <label
-                  className="relative size-8 shrink-0 cursor-pointer overflow-hidden rounded-md border border-border shadow-e1 focus-within:ring-2 focus-within:ring-ring"
+                  className="relative size-8 shrink-0 cursor-pointer overflow-hidden rounded-sm border border-border shadow-e1 focus-within:ring-2 focus-within:ring-ring"
                   style={{ background: background.color }}
                 >
                   <span className="sr-only">Background colour</span>
@@ -171,7 +174,7 @@ export function Inspector({
                   onChange={(e) => onBackgroundChange({ ...background, color: e.target.value })}
                   spellCheck={false}
                   aria-label="Background colour hex value"
-                  className="tabular h-8 w-full rounded-md border border-input bg-transparent px-2 text-xs uppercase focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                  className="tabular h-8 w-full rounded-sm border border-input bg-transparent px-2 text-xs uppercase focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                 />
               </div>
             ) : (

@@ -13,11 +13,21 @@
    Colour is authored in OKLCH so that lightness steps are perceptually
    even — a 0.06 step looks like the same jump at every hue.
 
-   Contrast (WCAG, against their own surface):
-     dark  · foreground        18.2:1   muted-foreground  7.1:1
-     light · foreground        16.4:1   muted-foreground  6.3:1
-   Both clear the 4.5:1 body-text floor with room for the Increase
-   Contrast setting, and no information is carried by hue alone.
+   Contrast (WCAG 2.1, measured — not estimated):
+     dark  · foreground/background       17.85:1
+             muted-foreground/card        6.78:1
+             primary/card                 5.51:1
+     light · foreground/background       16.94:1
+             muted-foreground/card        6.82:1
+             primary/card                 5.35:1
+   All clear the 4.5:1 body-text floor. --warning is the weakest pair
+   (3.32:1 on light card) and is therefore only ever used on icons,
+   where the 3:1 non-text threshold applies.
+
+   Elevation ladder (OKLCH lightness, dark):
+     background 0.165 → sidebar 0.19 → card 0.225 → popover 0.25
+   Even ~0.025 steps. Anything tighter than this stops reading as a
+   layer at panel size and the UI flattens out.
    ═══════════════════════════════════════════════════════════════════ */
 
 :root {
@@ -71,7 +81,19 @@
   --sidebar-border: oklch(0.905 0.006 286);
   --sidebar-ring: oklch(0.55 0.20 292);
 
-  /* ── Shape ── */
+  /* ── Shape ──────────────────────────────────────────────────────
+     Corner radius is tiered by element size, because a single radius
+     applied from a 28px control to a 551px stage gives radius:height
+     ratios from 43% down to 4% and reads inconsistently at both ends.
+
+       ≤ 32px tall  → 8px   (controls: inputs, buttons, segment items)
+       33–120px     → 12px  (containers: drop zone, popovers)
+       121–400px    → 16px  (cards)
+       > 400px      → 24px  (the stage)
+
+     Nested radii follow R_inner = R_outer − padding. The segmented
+     controls are 12px outer with 4px padding, so their items are
+     12 − 4 = 8px, which is exactly --radius-sm. ── */
   --radius: 0.75rem;
 
   /* ── Elevation. Shadows stay soft and low-contrast; depth is carried
@@ -79,6 +101,21 @@
   --elevation-1: 0 1px 2px oklch(0.21 0.012 286 / 0.05);
   --elevation-2: 0 2px 8px oklch(0.21 0.012 286 / 0.07), 0 1px 2px oklch(0.21 0.012 286 / 0.04);
   --elevation-3: 0 8px 24px oklch(0.21 0.012 286 / 0.10), 0 2px 6px oklch(0.21 0.012 286 / 0.05);
+
+  /* ── Materials ──────────────────────────────────────────────────
+     HIG separates a *functional* layer (toolbars, sidebars, popovers)
+     from the *content* layer beneath it. The functional layer uses a
+     translucent material so content can pass under it; the content
+     layer stays opaque. The stage is content and never gets glass.
+
+     Two variants, matching the regular/clear split:
+       --material-regular  chrome carrying a lot of text (panels)
+       --material-clear    chrome floating over rich media (transport)
+     ── */
+  --material-regular: 78%;
+  --material-clear: 55%;
+  --material-blur: 28px;
+  --material-saturate: 180%;
 
   /* ── Motion. One duration scale, one standard curve. ── */
   --ease-standard: cubic-bezier(0.32, 0.72, 0, 1);
@@ -92,19 +129,21 @@
   --background: oklch(0.165 0.011 286);
   --foreground: oklch(0.975 0.003 286);
 
-  --card: oklch(0.205 0.013 286);
+  --card: oklch(0.225 0.014 286);
   --card-foreground: oklch(0.975 0.003 286);
-  --popover: oklch(0.225 0.014 286);
+  --popover: oklch(0.25 0.015 286);
   --popover-foreground: oklch(0.975 0.003 286);
 
-  --muted: oklch(0.245 0.013 286);
+  --muted: oklch(0.265 0.014 286);
   --muted-foreground: oklch(0.715 0.017 286);
 
-  --secondary: oklch(0.245 0.013 286);
+  --secondary: oklch(0.265 0.014 286);
   --secondary-foreground: oklch(0.94 0.004 286);
 
-  --border: oklch(0.30 0.014 286);
-  --input: oklch(0.32 0.014 286);
+  /* Lifted alongside --card so the hairline stays visible on the lighter
+     surfaces rather than dissolving into them. */
+  --border: oklch(0.325 0.015 286);
+  --input: oklch(0.345 0.015 286);
   --ring: oklch(0.66 0.19 292);
 
   /* Brand lifts in dark so it stays legible against a dim ground. */
@@ -183,11 +222,11 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
 
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
-  --radius-2xl: calc(var(--radius) + 10px);
+  --radius-sm: calc(var(--radius) - 4px);   /*  8px — control tier   */
+  --radius-md: calc(var(--radius) - 2px);   /* 10px                  */
+  --radius-lg: var(--radius);               /* 12px — container tier */
+  --radius-xl: calc(var(--radius) + 4px);   /* 16px — card tier      */
+  --radius-2xl: calc(var(--radius) + 12px); /* 24px — stage tier     */
 
   --shadow-e1: var(--elevation-1);
   --shadow-e2: var(--elevation-2);
@@ -311,8 +350,49 @@
     );
   }
 
-  /* Panels are separated by surface lightness plus a hairline, not shadow. */
-  .panel {
-    @apply bg-sidebar border-sidebar-border;
+  /* ── Functional layer materials ──────────────────────────────────
+     Per HIG Materials: these float above the content layer and let it
+     pass through, which is what establishes the depth hierarchy. The
+     colour is mixed rather than alpha-composited so the surface keeps
+     its own luminosity instead of just going see-through.
+
+     Every rule degrades to a fully opaque surface when the browser
+     lacks backdrop-filter or the viewer has asked for reduced
+     transparency — legibility never depends on the blur landing. */
+  .material-regular {
+    background-color: var(--sidebar);
+    border-color: var(--sidebar-border);
   }
+  .material-clear {
+    background-color: var(--card);
+    border-color: var(--border);
+  }
+
+  @supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
+    .material-regular {
+      background-color: color-mix(in oklch, var(--sidebar) var(--material-regular), transparent);
+      -webkit-backdrop-filter: blur(var(--material-blur)) saturate(var(--material-saturate));
+      backdrop-filter: blur(var(--material-blur)) saturate(var(--material-saturate));
+    }
+    .material-clear {
+      background-color: color-mix(in oklch, var(--card) var(--material-clear), transparent);
+      -webkit-backdrop-filter: blur(var(--material-blur)) saturate(var(--material-saturate));
+      backdrop-filter: blur(var(--material-blur)) saturate(var(--material-saturate));
+    }
+  }
+
+  /* "Reduce transparency" is an explicit legibility request — honour it. */
+  @media (prefers-reduced-transparency: reduce) {
+    .material-regular {
+      background-color: var(--sidebar);
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
+    }
+    .material-clear {
+      background-color: var(--card);
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
+    }
+  }
+
 }

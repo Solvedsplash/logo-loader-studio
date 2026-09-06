@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Layers, Settings2, Download, Loader2 } from "lucide-react";
 
 import { ThemeProvider } from "@/components/theme-provider";
@@ -25,7 +25,10 @@ import { cn } from "@/lib/utils";
 // Families whose visual identity lives in strokes or decorations rather than in
 // the logo's own transform — these lose their effect when exported to Lottie.
 const DECORATED_FAMILIES = new Set([
-  "path-draw", "rings", "orbit", "shimmer", "wipe",
+  "path-draw", "handwrite", "rings", "orbit", "shimmer", "wipe",
+  "wave", "liquid", "glass-shine", "glitch", "depth", "particles",
+  "liquid-fill", "gradient-sweep", "shatter", "pixelate", "bands",
+  "neon", "zoom-streak",
 ]);
 
 const DEFAULT_EXPORT = {
@@ -48,6 +51,26 @@ function Studio() {
   const [rightOpen, setRightOpen] = useState(true);
 
   const preset = useMemo(() => getPreset(presetId), [presetId]);
+
+  // The panels only overlay the stage at lg and above; below that they become
+  // sheets and the stage gets the full width.
+  const [isWide, setIsWide] = useState(false);
+  const [panelWidth, setPanelWidth] = useState(300);
+  useEffect(() => {
+    const lg = window.matchMedia("(min-width: 1024px)");
+    const xl = window.matchMedia("(min-width: 1280px)");
+    const sync = () => {
+      setIsWide(lg.matches);
+      setPanelWidth(xl.matches ? 336 : 300);
+    };
+    sync();
+    lg.addEventListener("change", sync);
+    xl.addEventListener("change", sync);
+    return () => {
+      lg.removeEventListener("change", sync);
+      xl.removeEventListener("change", sync);
+    };
+  }, []);
 
   // The one place the background is decided. Everything downstream — preview,
   // thumbnails, all five export paths — reads it from the resolved animation, so
@@ -150,30 +173,39 @@ function Studio() {
         {exportControl}
       </TopBar>
 
-      <div className="flex min-h-0 flex-1">
-        {/* Presets — a sidebar on desktop, a sheet on small screens. */}
-        <aside
-          className={cn(
-            "panel hidden shrink-0 border-r lg:flex lg:flex-col",
-            leftOpen ? "w-[300px] xl:w-[336px]" : "w-0 overflow-hidden border-r-0"
-          )}
-        >
-          {leftOpen && leftPanel}
-        </aside>
-
-        <main className="flex min-w-0 flex-1 flex-col">
+      {/* The stage is the content layer and spans the full row; the panels are
+          the functional layer floating over it. HIG: "Controls and navigation
+          components like sidebars appear on top of content rather than on the
+          same plane" — which is also what gives the panel material something to
+          actually blur. */}
+      <div className="relative flex min-h-0 flex-1">
+        <div className="absolute inset-0">
           <Stage
             animation={animation}
             logoImg={logo.image}
             paths={logo.paths}
             showChecker={showChecker}
             onToggleChecker={() => setShowChecker((v) => !v)}
+            insetLeft={isWide && leftOpen ? panelWidth : 0}
+            insetRight={isWide && rightOpen ? panelWidth : 0}
           />
-        </main>
+        </div>
 
         <aside
           className={cn(
-            "panel hidden shrink-0 border-l lg:flex lg:flex-col",
+            "material-regular relative z-10 hidden shrink-0 border-r lg:flex lg:flex-col",
+            leftOpen ? "w-[300px] xl:w-[336px]" : "w-0 overflow-hidden border-r-0"
+          )}
+        >
+          {leftOpen && leftPanel}
+        </aside>
+
+        {/* Lets pointer events reach the stage between the two panels. */}
+        <div className="pointer-events-none min-w-0 flex-1" aria-hidden />
+
+        <aside
+          className={cn(
+            "material-regular relative z-10 hidden shrink-0 border-l lg:flex lg:flex-col",
             rightOpen ? "w-[300px] xl:w-[336px]" : "w-0 overflow-hidden border-l-0"
           )}
         >
