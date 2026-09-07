@@ -1,6 +1,6 @@
 "use client";
 
-import { Moon, Sun, Wand2, PanelLeft, PanelRight } from "lucide-react";
+import { Moon, Sun, PanelLeft, PanelRight } from "lucide-react";
 import { useTheme } from "@/components/theme-provider";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -13,12 +13,11 @@ export function TopBar({ onToggleLeft, onToggleRight, leftOpen, rightOpen, child
     <header className="relative z-20 flex h-12 shrink-0 items-center justify-between gap-3 vibrancy border-b border-border/60 px-3">
       {/* App identity */}
       <div className="flex items-center gap-2.5">
-        <span
-          className="grid size-7 place-items-center rounded-lg bg-primary text-white shadow-e1"
-          aria-hidden
-        >
-          <Wand2 className="size-3.5" strokeWidth={2} />
-        </span>
+        <img
+          src="/MotionPod.svg"
+          alt="Motion Pod logo"
+          className="size-7 rounded-lg shadow-e1 object-contain"
+        />
         <div className="leading-tight">
           <h1 className="text-sm font-semibold tracking-tight text-foreground">
             Motion Pod

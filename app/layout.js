@@ -20,6 +20,9 @@ export const metadata = {
   title: "Motion Pod",
   description:
     "Design logo loading animations from a library of parametric presets, then export them as transparent WebM, GIF or Lottie.",
+  icons: {
+    icon: "/MotionPod.svg",
+  },
 };
 
 export const viewport = {
