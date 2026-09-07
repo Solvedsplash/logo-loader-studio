@@ -20,9 +20,11 @@
      light · foreground/background       16.94:1
              muted-foreground/card        6.82:1
              primary/card                 5.35:1
-   All clear the 4.5:1 body-text floor. --warning is the weakest pair
-   (3.32:1 on light card) and is therefore only ever used on icons,
-   where the 3:1 non-text threshold applies.
+             warning/card                 5.05:1
+   All clear the 4.5:1 body-text floor in both appearances. --warning
+   was darkened from oklch(0.65 0.16 70) to oklch(0.55 0.145 62)
+   because at 3.32:1 it only cleared the 3:1 non-text bar, which made
+   it unsafe to ever put on text.
 
    Elevation ladder (OKLCH lightness, dark):
      background 0.165 → sidebar 0.19 → card 0.225 → popover 0.25
@@ -58,11 +60,11 @@
 
   --destructive: oklch(0.58 0.21 27);
   --success: oklch(0.55 0.14 155);
-  --warning: oklch(0.65 0.16 70);
+  --warning: oklch(0.55 0.145 62);
 
   /* ── Stage: the canvas surround, deliberately calmer than the UI ── */
   --stage: oklch(0.945 0.006 286);
-  --stage-glow: oklch(0.55 0.213 292 / 0.10);
+  --stage-glow: oklch(0.55 0.213 292 / 0.18);
   --checker-a: oklch(0.90 0.004 286);
   --checker-b: oklch(0.97 0.002 286);
 
@@ -157,7 +159,7 @@
   --warning: oklch(0.78 0.15 76);
 
   --stage: oklch(0.135 0.012 286);
-  --stage-glow: oklch(0.68 0.19 292 / 0.16);
+  --stage-glow: oklch(0.68 0.19 292 / 0.30);
   --checker-a: oklch(0.22 0.012 286);
   --checker-b: oklch(0.27 0.012 286);
 

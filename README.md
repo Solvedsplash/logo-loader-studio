@@ -5,9 +5,9 @@ transparent WebM, GIF or Lottie.
 
 ## Features
 
-- **122 parametric presets** across 10 categories — ink & handwriting, path
+- **137 parametric presets** across 10 categories — ink & handwriting, path
   drawing, reveal & assemble, fill & colour, signature FX, entrance, orbit,
-  spin, pulse and float.
+  spin, pulse and float. 33 engine families.
 - **Everything is configurable.** Each preset declares typed parameters
   (amplitude, stroke mode, glow, stagger, ring count…) plus global timing —
   duration, easing, direction and playback speed. Controls are generated from
@@ -43,6 +43,11 @@ never a preset id — so the server cannot disagree with what was previewed.
 Add an entry to `PRESETS` in `lib/presets.js`. If it uses an existing `family`,
 it inherits that family's parameter controls automatically. A new family needs a
 `case` in `getFrameState` and an entry in `PARAM_SCHEMA`.
+
+## Keyboard
+
+`Space` play/pause · `←` `→` step a frame (hold `Shift` for 5%) · `Home` restart ·
+`[` `]` toggle panels · `/` focus search · `Cmd/Ctrl+E` export.
 
 ## Tech Stack
 

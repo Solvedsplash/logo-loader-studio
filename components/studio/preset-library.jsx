@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import * as Icons from "lucide-react";
 import { Search, X, Check } from "lucide-react";
-import { PRESETS, PRESETS_BY_GROUP, GROUPS } from "@/lib/presets";
+import { PRESETS, PRESETS_BY_GROUP, GROUPS, needsVector } from "@/lib/presets";
 import { PresetThumb } from "./preset-thumb";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -15,7 +15,7 @@ const TAG_STYLES = {
   New: "bg-chart-3/15 text-chart-3 border-chart-3/25",
 };
 
-function PresetCard({ preset, selected, logoImg, paths, onSelect }) {
+function PresetCard({ preset, selected, logoImg, paths, onSelect, unavailable }) {
   const [hovered, setHovered] = useState(false);
 
   return (
@@ -27,12 +27,16 @@ function PresetCard({ preset, selected, logoImg, paths, onSelect }) {
       onFocus={() => setHovered(true)}
       onBlur={() => setHovered(false)}
       aria-pressed={selected}
+      // Kept selectable rather than disabled: HIG asks that people be told *why*
+      // something can't work, and a disabled control can't carry that message.
+      title={unavailable ? "Needs vector artwork — upload an SVG to trace paths" : undefined}
       className={cn(
         "group relative flex flex-col overflow-hidden rounded-xl border text-left transition-all",
         "focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
         selected
           ? "border-primary bg-primary/5 shadow-e2"
-          : "border-border bg-card hover:border-foreground/20 hover:shadow-e2"
+          : "border-border bg-card hover:border-foreground/20 hover:shadow-e2",
+        unavailable && !selected && "opacity-45"
       )}
     >
       <div className="checkerboard relative aspect-square w-full overflow-hidden">
@@ -58,7 +62,12 @@ function PresetCard({ preset, selected, logoImg, paths, onSelect }) {
           </span>
         )}
       </div>
-      <span className="truncate px-2 py-1.5 text-xs font-medium">{preset.name}</span>
+      <span className="flex items-center gap-1 px-2.5 py-2">
+        <span className="truncate text-sm font-medium">{preset.name}</span>
+        {unavailable && (
+          <Icons.Lock className="ml-auto size-3 shrink-0 text-muted-foreground" aria-hidden />
+        )}
+      </span>
     </button>
   );
 }
@@ -67,8 +76,8 @@ function PresetCard({ preset, selected, logoImg, paths, onSelect }) {
  * Browsable preset library: a group rail on the left, cards on the right.
  * Search cuts across every group at once.
  */
-export function PresetLibrary({ selectedId, onSelect, logoImg, paths, columns = 2 }) {
-  const [groupId, setGroupId] = useState("path");
+export function PresetLibrary({ selectedId, onSelect, logoImg, paths, isRaster, columns = 2 }) {
+  const [groupId, setGroupId] = useState("ink");
   const [query, setQuery] = useState("");
 
   const searching = query.trim().length > 0;
@@ -188,6 +197,7 @@ export function PresetLibrary({ selectedId, onSelect, logoImg, paths, columns = 
                   logoImg={logoImg}
                   paths={paths}
                   onSelect={onSelect}
+                  unavailable={isRaster && needsVector(preset)}
                 />
               ))}
             </div>

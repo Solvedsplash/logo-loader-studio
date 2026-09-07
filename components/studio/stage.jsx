@@ -24,6 +24,8 @@ export function Stage({
   // Widths of the panels floating over the stage. The canvas centres in the
   // gap between them rather than in the full row, so it never hides behind one.
   insetLeft = 0, insetRight = 0,
+  // Lets the page drive playback from global keyboard shortcuts.
+  controlsRef,
 }) {
   const canvasRef = useRef(null);
   const rafRef = useRef(0);
@@ -85,6 +87,23 @@ export function Stage({
     setScrub(v);
     paint(v);
   };
+
+  // Expose transport controls so global shortcuts can drive them without
+  // lifting playback state out of this component.
+  useEffect(() => {
+    if (!controlsRef) return;
+    controlsRef.current = {
+      togglePlay: () => setPlaying((p) => !p),
+      restart,
+      step: (delta) => {
+        setPlaying(false);
+        const next = (progressRef.current + delta + 1) % 1;
+        progressRef.current = next;
+        setScrub(next);
+        paint(next);
+      },
+    };
+  }, [controlsRef, paint]);
 
   const transparent = !animation?.backgroundColor;
 

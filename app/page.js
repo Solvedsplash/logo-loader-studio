@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Layers, Settings2, Download, Loader2 } from "lucide-react";
 
 import { ThemeProvider } from "@/components/theme-provider";
@@ -19,6 +19,7 @@ import { Separator } from "@/components/ui/separator";
 
 import { useLogo } from "@/hooks/use-logo";
 import { useExport } from "@/hooks/use-export";
+import { useShortcuts } from "@/hooks/use-shortcuts";
 import { getPreset, resolveAnimation, DEFAULT_PRESET_ID } from "@/lib/presets";
 import { cn } from "@/lib/utils";
 
@@ -28,7 +29,7 @@ const DECORATED_FAMILIES = new Set([
   "path-draw", "handwrite", "rings", "orbit", "shimmer", "wipe",
   "wave", "liquid", "glass-shine", "glitch", "depth", "particles",
   "liquid-fill", "gradient-sweep", "shatter", "pixelate", "bands",
-  "neon", "zoom-streak",
+  "neon", "zoom-streak", "iris", "confetti", "flip3d",
 ]);
 
 const DEFAULT_EXPORT = {
@@ -116,6 +117,28 @@ function Studio() {
     familyIsDecorated: DECORATED_FAMILIES.has(preset.family),
   };
 
+  // Keyboard equivalents for the actions people repeat most (HIG desktop).
+  const stageControls = useRef(null);
+  useShortcuts(
+    useMemo(
+      () => ({
+        onTogglePlay: () => stageControls.current?.togglePlay(),
+        onRestart: () => stageControls.current?.restart(),
+        onStep: (d) => stageControls.current?.step(d),
+        onExport: handleExport,
+        onToggleLeft: () => setLeftOpen((v) => !v),
+        onToggleRight: () => setRightOpen((v) => !v),
+        onFocusSearch: () => {
+          setLeftOpen(true);
+          requestAnimationFrame(() =>
+            document.querySelector('input[type="search"]')?.focus()
+          );
+        },
+      }),
+      [handleExport]
+    )
+  );
+
   const leftPanel = (
     <div className="flex h-full min-h-0 flex-col">
       <LogoImport
@@ -133,6 +156,7 @@ function Studio() {
           onSelect={selectPreset}
           logoImg={logo.image}
           paths={logo.paths}
+          isRaster={logo.isRaster}
         />
       </div>
     </div>
@@ -188,6 +212,7 @@ function Studio() {
             onToggleChecker={() => setShowChecker((v) => !v)}
             insetLeft={isWide && leftOpen ? panelWidth : 0}
             insetRight={isWide && rightOpen ? panelWidth : 0}
+            controlsRef={stageControls}
           />
         </div>
 
