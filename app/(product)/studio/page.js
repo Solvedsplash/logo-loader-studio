@@ -3,7 +3,6 @@
 import { useCallback, useMemo, useState } from "react";
 import { Layers, Settings2, Download, Loader2 } from "lucide-react";
 
-import { ThemeProvider } from "@/components/theme-provider";
 import { TopBar } from "@/components/studio/top-bar";
 import { Stage } from "@/components/studio/stage";
 import { PresetLibrary } from "@/components/studio/preset-library";
@@ -233,15 +232,11 @@ function Studio() {
             />
           </SheetContent>
         </Sheet>
-      </div >
-    </div >
+      </div>
+    </div>
   );
 }
 
-export default function Page() {
-  return (
-    <ThemeProvider>
-      <Studio />
-    </ThemeProvider>
-  );
+export default function StudioPage() {
+  return <Studio />;
 }

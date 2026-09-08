@@ -1,5 +1,4 @@
 import { Cabin, Geist_Mono } from "next/font/google";
-import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeScript } from "@/components/theme-provider";
 import "./globals.css";
 
@@ -25,26 +24,15 @@ export const metadata = {
   },
 };
 
-export const viewport = {
-  width: "device-width",
-  initialScale: 1,
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f5f5f7" },
-    { media: "(prefers-color-scheme: dark)", color: "#1c1c1e" },
-  ],
-};
-
 export default function RootLayout({ children }) {
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        {/* Applies the stored theme before first paint, so a light-theme user
-            never sees a dark flash (and vice versa). */}
+        {/* Applies the stored theme before first paint across all routes. */}
         <ThemeScript />
       </head>
-      <body className={`${cabin.variable} ${geistMono.variable}`}>
-        <TooltipProvider delayDuration={300}>{children}</TooltipProvider>
-      </body>
+      <body className={`${cabin.variable} ${geistMono.variable}`}>{children}</body>
     </html>
   );
 }
+
