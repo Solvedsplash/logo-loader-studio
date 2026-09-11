@@ -1,5 +1,6 @@
 import { Cabin, Geist_Mono } from "next/font/google";
 import { ThemeScript } from "@/components/theme-provider";
+import { AuthSessionProvider } from "@/components/auth/session-provider";
 import "./globals.css";
 
 const cabin = Cabin({
@@ -31,7 +32,9 @@ export default function RootLayout({ children }) {
         {/* Applies the stored theme before first paint across all routes. */}
         <ThemeScript />
       </head>
-      <body className={`${cabin.variable} ${geistMono.variable}`}>{children}</body>
+      <body className={`${cabin.variable} ${geistMono.variable}`}>
+        <AuthSessionProvider>{children}</AuthSessionProvider>
+      </body>
     </html>
   );
 }

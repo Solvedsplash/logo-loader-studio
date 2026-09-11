@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import anime from "animejs";
 
 const IMAGES = [
@@ -429,7 +430,31 @@ export default function OrbisLanding() {
     <div className="fixed inset-0 flex select-none flex-col justify-between bg-black text-white">
       {/* header */}
       <header className="relative z-20 flex items-center justify-between px-[18px] py-[18px] sm:px-[34px] sm:py-[28px]">
-        {/* Logo / wordmark slot — add content here if needed */}
+        <Link href="/" className="flex items-center gap-2.5 transition-opacity hover:opacity-85">
+          <img
+            src="/MotionPod.svg"
+            alt="Motion Pod"
+            className="size-7 object-contain drop-shadow-[0_2px_8px_rgba(0,122,255,0.4)]"
+          />
+          <span className="text-sm font-semibold tracking-tight text-white/90">
+            Motion Pod
+          </span>
+        </Link>
+
+        <div className="flex items-center gap-3">
+          <Link
+            href="/login"
+            className="rounded-full px-3.5 py-1.5 text-xs font-medium text-white/70 hover:text-white transition-colors"
+          >
+            Sign In
+          </Link>
+          <Link
+            href="/studio"
+            className="rounded-full bg-white/10 hover:bg-white/15 px-4 py-1.5 text-xs font-semibold text-white border border-white/15 backdrop-blur-md transition-all duration-200 hover:scale-105 active:scale-95"
+          >
+            Launch Studio
+          </Link>
+        </div>
       </header>
 
       {/* orbit stage */}

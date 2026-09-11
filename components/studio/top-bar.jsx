@@ -4,6 +4,7 @@ import { Moon, Sun, PanelLeft, PanelRight } from "lucide-react";
 import { useTheme } from "@/components/theme-provider";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { UserMenu } from "@/components/studio/user-menu";
 import { cn } from "@/lib/utils";
 
 export function TopBar({ onToggleLeft, onToggleRight, leftOpen, rightOpen, children }) {
@@ -29,7 +30,7 @@ export function TopBar({ onToggleLeft, onToggleRight, leftOpen, rightOpen, child
       </div>
 
       {/* Controls */}
-      <div className="flex items-center gap-0.5">
+      <div className="flex items-center gap-1">
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
@@ -88,6 +89,11 @@ export function TopBar({ onToggleLeft, onToggleRight, leftOpen, rightOpen, child
             {theme === "dark" ? "Light appearance" : "Dark appearance"}
           </TooltipContent>
         </Tooltip>
+
+        <div className="mx-0.5 h-5 w-px bg-border" aria-hidden />
+
+        {/* User Profile / Account Menu */}
+        <UserMenu />
 
         {children && <div className="ml-1 hidden lg:block">{children}</div>}
       </div>
